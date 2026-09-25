@@ -75,38 +75,110 @@ function randomId() {
   return Array.from(bytes, b => chars[b % chars.length]).join("");
 }
 
+const DEFAULT_PUJOS = [
+  {
+    id: "singhi-park",
+    name: "Singhi Park Sarbojonin Durga Puja",
+    theme: "Heritage Architecture & Traditional Craft",
+    description: "Since 1941, Singhi Park Sarbojonin Durga Puja has been synonymous with grandeur, classical pandal structures, and breathtaking lighting. One of South Kolkata's most celebrated pujos.",
+    location: "https://www.google.com/maps/search/?api=1&query=Singhi+Park+Sarbojonin+Durga+Puja+Ballygunge+Kolkata",
+    createdAt: "2026-09-01T00:00:00Z",
+    backgroundPhotoId: "singhi-1",
+    bgUrl: "/images/photo2.jpg",
+    photos: [
+      { id: "singhi-1", key: "singhi-1", url: "/images/photo2.jpg", name: "Singhi Park 1" },
+      { id: "singhi-2", key: "singhi-2", url: "/images/hero.jpg", name: "Singhi Park 2" },
+      { id: "singhi-3", key: "singhi-3", url: "/images/photo3.jpg", name: "Singhi Park 3" },
+      { id: "singhi-4", key: "singhi-4", url: "/images/photo4.jpg", name: "Singhi Park 4" }
+    ]
+  },
+  {
+    id: "deshapriya-park",
+    name: "Deshapriya Park",
+    theme: "Grandeur & Universal Celebration",
+    description: "Deshapriya Park is famous across Bengal for its massive crowd-pulling installations, colossal pandals, and electric festive atmosphere in the heart of South Kolkata.",
+    location: "https://www.google.com/maps/search/?api=1&query=Deshapriya+Park+Durga+Puja+Kolkata",
+    createdAt: "2026-09-02T00:00:00Z",
+    backgroundPhotoId: "deshapriya-1",
+    bgUrl: "/images/photo3.jpg",
+    photos: [
+      { id: "deshapriya-1", key: "deshapriya-1", url: "/images/photo3.jpg", name: "Deshapriya 1" },
+      { id: "deshapriya-2", key: "deshapriya-2", url: "/images/photo4.jpg", name: "Deshapriya 2" },
+      { id: "deshapriya-3", key: "deshapriya-3", url: "/images/hero.jpg", name: "Deshapriya 3" }
+    ]
+  },
+  {
+    id: "mudiali-club",
+    name: "Mudiali Club",
+    theme: "Artistic Harmony & Ecology",
+    description: "Renowned for its eco-conscious themes, delicate craftsmanship, and traditional serenity, Mudiali Club creates an immersive aesthetic sanctuary each year.",
+    location: "https://www.google.com/maps/search/?api=1&query=Mudiali+Club+Durga+Puja+Kolkata",
+    createdAt: "2026-09-03T00:00:00Z",
+    backgroundPhotoId: "mudiali-1",
+    bgUrl: "/images/photo4.jpg",
+    photos: [
+      { id: "mudiali-1", key: "mudiali-1", url: "/images/photo4.jpg", name: "Mudiali 1" },
+      { id: "mudiali-2", key: "mudiali-2", url: "/images/photo2.jpg", name: "Mudiali 2" },
+      { id: "mudiali-3", key: "mudiali-3", url: "/images/photo3.jpg", name: "Mudiali 3" }
+    ]
+  },
+  {
+    id: "ekdalia-evergreen",
+    name: "Ekdalia Evergreen Club",
+    theme: "Temple Architecture & Illuminations",
+    description: "An icon of Gariahat since 1943, Ekdalia Evergreen is acclaimed for recreating ancient Indian temples, traditional idol forms, and legendary Chandannagar lighting.",
+    location: "https://www.google.com/maps/search/?api=1&query=Ekdalia+Evergreen+Club+Kolkata",
+    createdAt: "2026-09-04T00:00:00Z",
+    backgroundPhotoId: "ekdalia-1",
+    bgUrl: "/images/hero.jpg",
+    photos: [
+      { id: "ekdalia-1", key: "ekdalia-1", url: "/images/hero.jpg", name: "Ekdalia 1" },
+      { id: "ekdalia-2", key: "ekdalia-2", url: "/images/photo3.jpg", name: "Ekdalia 2" },
+      { id: "ekdalia-3", key: "ekdalia-3", url: "/images/photo2.jpg", name: "Ekdalia 3" }
+    ]
+  }
+];
+
 async function loadPujos() {
-  const { data, error } = await supabase
-    .from("pujos")
-    .select("id, name, theme, description, location, created_at, background_photo_id, photos!photos_pujo_id_fkey(id, storage_path, sort_order, created_at)")
-    .order("created_at", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("pujos")
+      .select("id, name, theme, description, location, created_at, background_photo_id, photos!photos_pujo_id_fkey(id, storage_path, sort_order, created_at)")
+      .order("created_at", { ascending: true });
 
-  if (error) throw error;
-
-  return (data || []).map(p => {
-    const sortedPhotos = (p.photos || []).sort((a, b) => {
-      if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
-      return new Date(a.created_at) - new Date(b.created_at);
-    });
-
-    let bgPhoto = sortedPhotos.find(photo => photo.id === p.background_photo_id) || sortedPhotos[0];
-    let bgUrl = null;
-    if (bgPhoto) {
-      const { data: publicData } = supabase.storage.from("pujo-images").getPublicUrl(bgPhoto.storage_path);
-      bgUrl = publicData.publicUrl;
+    if (error || !data || data.length === 0) {
+      return DEFAULT_PUJOS;
     }
 
-    return {
-      id: p.id,
-      name: p.name,
-      theme: p.theme || "",
-      description: p.description || "",
-      location: p.location || "",
-      createdAt: p.created_at,
-      backgroundPhotoId: p.background_photo_id,
-      bgUrl: bgUrl
-    };
-  });
+    const items = (data || []).map(p => {
+      const sortedPhotos = (p.photos || []).sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
+        return new Date(a.created_at) - new Date(b.created_at);
+      });
+
+      let bgPhoto = sortedPhotos.find(photo => photo.id === p.background_photo_id) || sortedPhotos[0];
+      let bgUrl = null;
+      if (bgPhoto) {
+        const { data: publicData } = supabase.storage.from("pujo-images").getPublicUrl(bgPhoto.storage_path);
+        bgUrl = publicData.publicUrl;
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        theme: p.theme || "",
+        description: p.description || "",
+        location: p.location || "",
+        createdAt: p.created_at,
+        backgroundPhotoId: p.background_photo_id,
+        bgUrl: bgUrl
+      };
+    });
+
+    return items.length ? items : DEFAULT_PUJOS;
+  } catch (err) {
+    return DEFAULT_PUJOS;
+  }
 }
 
 async function createPujo(pujo) {
@@ -155,30 +227,38 @@ async function setPujoBackground(pujoId, photoId) {
 }
 
 async function getPhotos(pujoId) {
-  const { data, error } = await supabase
-    .from("photos")
-    .select("id, pujo_id, storage_path, sort_order, created_at")
-    .eq("pujo_id", pujoId)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("photos")
+      .select("id, pujo_id, storage_path, sort_order, created_at")
+      .eq("pujo_id", pujoId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
 
-  if (error) throw error;
+    if (error || !data || data.length === 0) {
+      const def = DEFAULT_PUJOS.find(p => p.id === pujoId);
+      return def?.photos || [];
+    }
 
-  return (data || []).map(photo => {
-    const { data: publicData } = supabase
-      .storage
-      .from("pujo-images")
-      .getPublicUrl(photo.storage_path);
+    return (data || []).map(photo => {
+      const { data: publicData } = supabase
+        .storage
+        .from("pujo-images")
+        .getPublicUrl(photo.storage_path);
 
-    return {
-      key: photo.id,
-      id: photo.id,
-      pujoId: photo.pujo_id,
-      storagePath: photo.storage_path,
-      name: photo.storage_path.split("/").pop() || "photo",
-      url: publicData.publicUrl
-    };
-  });
+      return {
+        key: photo.id,
+        id: photo.id,
+        pujoId: photo.pujo_id,
+        storagePath: photo.storage_path,
+        name: photo.storage_path.split("/").pop() || "photo",
+        url: publicData.publicUrl
+      };
+    });
+  } catch (err) {
+    const def = DEFAULT_PUJOS.find(p => p.id === pujoId);
+    return def?.photos || [];
+  }
 }
 
 async function putPhotos(pujoId, files, startOrder = 0) {
@@ -440,7 +520,20 @@ function PujoListPage() {
       />
     ))}
     <nav className="pujo-nav"><ul><li><a href="/">Home</a></li><li><a href="/pujo" aria-current="page">Pujo</a></li><li><a href="#blog">Blog</a></li><li><a href="#about">About</a></li><li><a href="/login">Login</a></li></ul></nav>
-    <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control" disabled>Filter</button>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="pujo-control pujo-control--add" onClick={() => setAdding(true)}>Add Pujo</button>}</section>
+    <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control pujo-control--filter" disabled aria-label="Filter">
+          <svg className="pujo-filter-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            {/* top slider line */}
+            <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="8" cy="6" r="2.2" fill="currentColor"/>
+            {/* middle slider line */}
+            <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="16" cy="12" r="2.2" fill="currentColor"/>
+            {/* bottom slider line */}
+            <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="11" cy="18" r="2.2" fill="currentColor"/>
+          </svg>
+          <span className="sr-only">Filter</span>
+        </button>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="pujo-control pujo-control--add" onClick={() => setAdding(true)}>Add Pujo</button>}</section>
     <section className="pujo-list-wrap">
       <div className="pujo-list">
         {filtered.map((p, i) => <a key={p.id} data-pujo-id={p.id} className="pujo-row" href={`/pujo/${encodeURIComponent(p.id)}`} onMouseEnter={() => setHoveredPujoId(p.id)} onMouseLeave={() => setHoveredPujoId(null)} onFocus={() => setHoveredPujoId(p.id)} onBlur={() => setHoveredPujoId(null)} onClick={() => { if (window.matchMedia("(pointer: coarse)").matches) setHoveredPujoId(null); }}>
@@ -472,6 +565,7 @@ function PujoListPage() {
 function PujoDetailPage({ pujo }) {
   const [profile, setProfile] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
   const [bgId, setBgId] = useState(pujo.backgroundPhotoId);
   const heroRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -480,26 +574,43 @@ function PujoDetailPage({ pujo }) {
   const [descDraft, setDescDraft] = useState(pujo.description || pujo.theme || "");
   const [descValue, setDescValue] = useState(pujo.description || pujo.theme || "");
   const [lightbox, setLightbox] = useState(null);
-  useEffect(() => { getCurrentProfile().then(setProfile).catch(() => setProfile(null)); getPhotos(pujo.id).then(setPhotos).catch(() => {}); }, [pujo.id]);
+  useEffect(() => {
+    let active = true;
+    setPhotos([]);
+    setGalleryLoading(true);
+    getCurrentProfile().then(setProfile).catch(() => setProfile(null));
+    getPhotos(pujo.id)
+      .then(data => { if (active) setPhotos(data); })
+      .catch(() => {})
+      .finally(() => { if (active) setGalleryLoading(false); });
+    return () => { active = false; };
+  }, [pujo.id]);
   useEffect(() => {
     let raf = 0;
     const update = () => {
       raf = 0;
       if (!heroRef.current) return;
-      const rect = heroRef.current.getBoundingClientRect();
-      const travel = Math.max(1, rect.height);
-      const p = Math.max(-1, Math.min(1, -rect.top / travel));
-      heroRef.current.style.setProperty("--scroll-tilt", `${(p * -1.6).toFixed(3)}deg`);
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const travel = window.innerHeight;
+      const p = Math.max(-1, Math.min(1, scrollY / travel));
       heroRef.current.style.setProperty("--scroll-depth", `${(p * 18).toFixed(2)}px`);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
-    update();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
   const urls = photos;
-  const gallery = photos.length ? photos : [{ key: "fallback", url: FALLBACK, name: "Fallback" }];
+  // Only fall back to the default Durga image after the fetch has settled and
+  // genuinely returned no photos.  While galleryLoading is true, gallery is
+  // null — render sites check galleryLoading before touching gallery[0].
+  const gallery = galleryLoading
+    ? null
+    : photos.length
+      ? photos
+      : [{ key: "fallback", url: FALLBACK, name: "Fallback" }];
 
   const upload = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, Math.max(0, 10 - photos.length));
@@ -536,7 +647,10 @@ function PujoDetailPage({ pujo }) {
   };
   return <main className="pujo-detail-page">
     <div className="detail-backdrop-wrap">
-      <div className="detail-backdrop" style={{ backgroundImage: `url(${gallery[0].url})` }} />
+      {galleryLoading
+        ? <div className="detail-backdrop detail-backdrop--skeleton" />
+        : <div className="detail-backdrop" style={{ backgroundImage: `url(${gallery[0].url})` }} />
+      }
     </div>
     <div className="detail-grain" />
     <nav className="detail-nav"><a href="/">Home</a><a href="/pujo">Pujo</a><a href="#blog">Blog</a><a href="#about">About</a><a href="/login">Login</a></nav>
@@ -562,7 +676,12 @@ function PujoDetailPage({ pujo }) {
         <input ref={fileRef} className="hidden-file" type="file" accept="image/*" multiple onChange={upload} />
         <div className="detail-id">{pujo.id}</div>
       </aside>
-      <div className="hero-image-wrap"><img src={gallery[0].url} alt={pujo.name} /></div>
+      <div className="hero-image-wrap">
+        {galleryLoading
+          ? <div className="hero-image-skeleton" aria-hidden="true" />
+          : <img src={gallery[0].url} alt={pujo.name} />
+        }
+      </div>
     </section>
     <section className="detail-gallery" id="gallery">
       <div className="gallery-heading"><span>Gallery</span><small>{Math.min(photos.length,10)} / 10</small></div>
