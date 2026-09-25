@@ -1,9 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import AuthPage from "./AuthPage";
 import { getCurrentProfile, ROLES } from "./auth";
 import "./styles.css";
+import "./blog.css";
+
+const BlogListPage = lazy(() => import("./blog/index.jsx").then(m => ({ default: m.BlogListPage })));
+const BlogArticlePage = lazy(() => import("./blog/index.jsx").then(m => ({ default: m.BlogArticlePage })));
+const BlogWritePage = lazy(() => import("./blog/index.jsx").then(m => ({ default: m.BlogWritePage })));
+const BlogManagerPage = lazy(() => import("./blog/index.jsx").then(m => ({ default: m.BlogManagerPage })));
 
 const frames = [
   { image: "/images/hero.jpg", eyebrow: "", text: "", position: "50% 38%" },
@@ -685,8 +691,6 @@ function AboutPage() {
 }
 
 function App() {
-  // Keep the existing Home/Pujo components untouched while allowing their
-  // existing #about links to open the functional About page.
   const [hash, setHash] = useState(() => window.location.hash.toLowerCase());
 
   useEffect(() => {
@@ -694,7 +698,10 @@ function App() {
 
     const onDisabledNavigation = (event) => {
       const link = event.target.closest?.('a[href="#blog"]');
-      if (link) event.preventDefault();
+      if (link) {
+        event.preventDefault();
+        window.location.href = "/blog";
+      }
     };
 
     window.addEventListener("hashchange", onHashChange);
@@ -707,12 +714,20 @@ function App() {
 
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
 
-  // The existing Home and Pujo navigation already use #about. Handle that
-  // hash at the app/router level so neither page's visual/component code has
-  // to be changed.
   if (path === "/login") return <AuthPage />;
   if (hash === "#about") return <AboutPage />;
   if (path === "/about") return <AboutPage />;
+  
+  const fallback = <div style={{ minHeight: "100vh", background: "var(--black)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontFamily: "var(--mono)" }}>Loading...</div>;
+
+  if (path === "/blog") return <Suspense fallback={fallback}><BlogListPage /></Suspense>;
+  if (path === "/blog/write") return <Suspense fallback={fallback}><BlogWritePage /></Suspense>;
+  if (path === "/blog/manage") return <Suspense fallback={fallback}><BlogManagerPage /></Suspense>;
+  if (path.startsWith("/blog/")) {
+    const slug = decodeURIComponent(path.slice("/blog/".length));
+    return <Suspense fallback={fallback}><BlogArticlePage slug={slug} /></Suspense>;
+  }
+
   if (path === "/pujo") return <PujoListPage />;
   if (path.startsWith("/pujo/")) {
     const id = decodeURIComponent(path.slice("/pujo/".length));
