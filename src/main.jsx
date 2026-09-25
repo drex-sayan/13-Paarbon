@@ -514,7 +514,20 @@ function PujoListPage() {
       />
     ))}
     <nav className="pujo-nav"><ul><li><a href="/">Home</a></li><li><a href="/pujo" aria-current="page">Pujo</a></li><li><a href="#blog">Blog</a></li><li><a href="#about">About</a></li><li><a href="/login">Login</a></li></ul></nav>
-    <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control" disabled>Filter</button>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="pujo-control pujo-control--add" onClick={() => setAdding(true)}>Add Pujo</button>}</section>
+    <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control pujo-control--filter" disabled aria-label="Filter">
+          <svg className="pujo-filter-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+            {/* top slider line */}
+            <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="8" cy="6" r="2.2" fill="currentColor"/>
+            {/* middle slider line */}
+            <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="16" cy="12" r="2.2" fill="currentColor"/>
+            {/* bottom slider line */}
+            <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <circle cx="11" cy="18" r="2.2" fill="currentColor"/>
+          </svg>
+          <span className="sr-only">Filter</span>
+        </button>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="pujo-control pujo-control--add" onClick={() => setAdding(true)}>Add Pujo</button>}</section>
     <section className="pujo-list-wrap">
       <div className="pujo-list">
         {filtered.map((p, i) => <a key={p.id} data-pujo-id={p.id} className="pujo-row" href={`/pujo/${encodeURIComponent(p.id)}`} onMouseEnter={() => setHoveredPujoId(p.id)} onMouseLeave={() => setHoveredPujoId(null)} onFocus={() => setHoveredPujoId(p.id)} onBlur={() => setHoveredPujoId(null)} onClick={() => { if (window.matchMedia("(pointer: coarse)").matches) setHoveredPujoId(null); }}>
@@ -546,6 +559,7 @@ function PujoListPage() {
 function PujoDetailPage({ pujo }) {
   const [profile, setProfile] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(true);
   const [bgId, setBgId] = useState(pujo.backgroundPhotoId);
   const heroRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -554,7 +568,17 @@ function PujoDetailPage({ pujo }) {
   const [descDraft, setDescDraft] = useState(pujo.description || pujo.theme || "");
   const [descValue, setDescValue] = useState(pujo.description || pujo.theme || "");
   const [lightbox, setLightbox] = useState(null);
-  useEffect(() => { getCurrentProfile().then(setProfile).catch(() => setProfile(null)); getPhotos(pujo.id).then(setPhotos).catch(() => {}); }, [pujo.id]);
+  useEffect(() => {
+    let active = true;
+    setPhotos([]);
+    setGalleryLoading(true);
+    getCurrentProfile().then(setProfile).catch(() => setProfile(null));
+    getPhotos(pujo.id)
+      .then(data => { if (active) setPhotos(data); })
+      .catch(() => {})
+      .finally(() => { if (active) setGalleryLoading(false); });
+    return () => { active = false; };
+  }, [pujo.id]);
   useEffect(() => {
     let raf = 0;
     const update = () => {
@@ -573,7 +597,14 @@ function PujoDetailPage({ pujo }) {
     };
   }, []);
   const urls = photos;
-  const gallery = photos.length ? photos : [{ key: "fallback", url: FALLBACK, name: "Fallback" }];
+  // Only fall back to the default Durga image after the fetch has settled and
+  // genuinely returned no photos.  While galleryLoading is true, gallery is
+  // null — render sites check galleryLoading before touching gallery[0].
+  const gallery = galleryLoading
+    ? null
+    : photos.length
+      ? photos
+      : [{ key: "fallback", url: FALLBACK, name: "Fallback" }];
 
   const upload = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, Math.max(0, 10 - photos.length));
@@ -610,7 +641,10 @@ function PujoDetailPage({ pujo }) {
   };
   return <main className="pujo-detail-page">
     <div className="detail-backdrop-wrap">
-      <div className="detail-backdrop" style={{ backgroundImage: `url(${gallery[0].url})` }} />
+      {galleryLoading
+        ? <div className="detail-backdrop detail-backdrop--skeleton" />
+        : <div className="detail-backdrop" style={{ backgroundImage: `url(${gallery[0].url})` }} />
+      }
     </div>
     <div className="detail-grain" />
     <nav className="detail-nav"><a href="/">Home</a><a href="/pujo">Pujo</a><a href="#blog">Blog</a><a href="#about">About</a><a href="/login">Login</a></nav>
@@ -636,7 +670,12 @@ function PujoDetailPage({ pujo }) {
         <input ref={fileRef} className="hidden-file" type="file" accept="image/*" multiple onChange={upload} />
         <div className="detail-id">{pujo.id}</div>
       </aside>
-      <div className="hero-image-wrap"><img src={gallery[0].url} alt={pujo.name} /></div>
+      <div className="hero-image-wrap">
+        {galleryLoading
+          ? <div className="hero-image-skeleton" aria-hidden="true" />
+          : <img src={gallery[0].url} alt={pujo.name} />
+        }
+      </div>
     </section>
     <section className="detail-gallery" id="gallery">
       <div className="gallery-heading"><span>Gallery</span><small>{Math.min(photos.length,10)} / 10</small></div>
