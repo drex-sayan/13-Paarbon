@@ -89,12 +89,21 @@ export function BlogWritePage() {
 
   const submitReview = async () => {
     if (!copyrightConfirmed) return alert("You must confirm copyright ownership.");
-    if (!form.title || !form.content || !form.cover_photo) return alert("Title, content, and cover photo are required.");
+    
+    // Fallback to ref in case state is lagging
+    const currentContent = contentRef.current ? contentRef.current.innerHTML : form.content;
+    
+    if (!form.title) return alert("Please add a Title before submitting.");
+    if (!currentContent || currentContent === "<br>") return alert("Please add some Content before submitting.");
+    if (!form.cover_photo) return alert("Please upload a Cover Photo before submitting.");
+    
+    // Ensure form state has latest content before saving
+    setForm({...form, content: currentContent});
     
     await saveDraft();
     if (!postId) return;
     
-    await supabase.from('blog_posts').update({ status: 'PENDING_REVIEW' }).eq('id', postId);
+    await supabase.from('blog_posts').update({ status: 'PENDING_REVIEW', content: currentContent }).eq('id', postId);
     alert("Submitted for review!");
     window.location.href = "/blog";
   };
@@ -108,9 +117,9 @@ export function BlogWritePage() {
     const path = `${crypto.randomUUID()}.${ext}`;
     
     setSaving(true);
-    const { error } = await supabase.storage.from('blog-images').upload(path, file);
+    const { error } = await supabase.storage.from('blog-image').upload(path, file);
     if (!error) {
-      const { data } = supabase.storage.from('blog-images').getPublicUrl(path);
+      const { data } = supabase.storage.from('blog-image').getPublicUrl(path);
       if (type === 'cover') {
         setForm({ ...form, cover_photo: data.publicUrl });
       } else {
@@ -221,3 +230,4 @@ export function BlogWritePage() {
     </div>
   );
 }
+
