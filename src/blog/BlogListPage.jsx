@@ -1,32 +1,89 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
+import { getCurrentProfile, ROLES } from "../auth";
 
 export function BlogListPage() {
   const [posts, setPosts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
   const [selectedCat, setSelectedCat] = useState("all");
   const [page, setPage] = useState(1);
+  const [profile, setProfile] = useState(null);
   const LIMIT = 9;
 
   useEffect(() => {
     async function load() {
+      try {
+         const p = await getCurrentProfile();
+         setProfile(p);
+      } catch (e) {}
+
       const { data: cats } = await supabase.from('blog_categories').select('*').order('name');
       if (cats) setCategories(cats);
 
-      const { data: p } = await supabase.from('blog_posts')
-        .select('*, blog_categories(name), profiles!blog_posts_author_id_fkey(username, avatar_url)')
+      const { data: pData, error } = await supabase.from('blog_posts')
+        .select('*, blog_categories(name), profiles!blog_posts_author_id_fkey(username)')
         .eq('status', 'PUBLISHED')
         .is('deleted_at', null)
         .order('is_featured', { ascending: false })
         .order('published_at', { ascending: false });
       
-      if (p) setPosts(p);
+      if (error) {
+          console.error("Blog list fetch error:", error);
+          setPosts([]);
+          setErrorMsg("Unable to load stories. Please try again.");
+      } else {
+          setPosts(pData || []);
+      }
       setLoading(false);
     }
     load();
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    async function search() {
+      if (!debouncedQuery.trim()) {
+        setSearchResults(null);
+        setErrorMsg(null);
+        return;
+      }
+      const { data, error } = await supabase.rpc('search_blog_posts', { search_term: debouncedQuery.trim() });
+      if (error) {
+          console.error("Search error:", error);
+          setSearchResults([]);
+          setErrorMsg("Unable to search stories. Please try again.");
+          return;
+      }
+      setErrorMsg(null);
+      if (data && data.length > 0) {
+          const ids = data.map(d => d.id);
+          const { data: enriched, error: enrichErr } = await supabase.from('blog_posts').select('*, blog_categories(name), profiles!blog_posts_author_id_fkey(username)').in('id', ids);
+          if (enrichErr) {
+              console.error("Enrich error:", enrichErr);
+              setSearchResults([]);
+              setErrorMsg("Unable to search stories. Please try again.");
+          } else if (enriched) {
+              setSearchResults(enriched);
+          } else {
+              setSearchResults(data);
+          }
+      } else {
+          setSearchResults([]);
+      }
+    }
+    search();
+  }, [debouncedQuery]);
 
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
@@ -40,21 +97,24 @@ export function BlogListPage() {
     const cards = document.querySelectorAll('.blog-card:not(.is-visible)');
     cards.forEach(c => observer.observe(c));
     return () => observer.disconnect();
-  }, [posts, query, selectedCat, page]);
+  }, [posts, searchResults, selectedCat, page]);
 
   const filtered = useMemo(() => {
-    let f = posts;
+    let f = searchResults !== null ? searchResults : posts;
     if (selectedCat !== 'all') f = f.filter(p => p.category_id === selectedCat);
-    if (query) {
-      const q = query.toLowerCase();
-      f = f.filter(p => p.title.toLowerCase().includes(q) || p.excerpt?.toLowerCase().includes(q));
-    }
     return f;
-  }, [posts, selectedCat, query]);
+  }, [posts, searchResults, selectedCat]);
 
   const featured = filtered.length > 0 && !query && selectedCat === 'all' ? filtered[0] : null;
   const gridPosts = filtered.slice(featured ? 1 : 0, page * LIMIT);
   const hasMore = gridPosts.length < (filtered.length - (featured ? 1 : 0));
+
+  const handleMyBlogClick = (e) => {
+      e.preventDefault();
+      if (!profile) window.location.href = "/login?redirect=/blog/my";
+      else if (profile.role === ROLES.ADMIN || profile.role === ROLES.EDITOR) window.location.href = "/blog/manage";
+      else window.location.href = "/blog/my";
+  };
 
   return (
     <div className="blog-page">
@@ -68,7 +128,7 @@ export function BlogListPage() {
         <div className="blog-hero-content animate-reveal">
           <span className="blog-hero-kicker">Blog</span>
           <h1 className="blog-hero-title">Stories from Kolkata</h1>
-          <p className="blog-hero-desc">Beyond the pandal — stories, people, art and traditions of Durga Puja.</p>
+          <p className="blog-hero-desc">Beyond the pandal – stories, people, art and traditions of Durga Puja.</p>
         </div>
       </div>
 
@@ -81,12 +141,14 @@ export function BlogListPage() {
 
       <div className="blog-search-wrap animate-reveal" style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center' }}>
         <input className="blog-search-input" placeholder="Search stories..." value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} />
-        <a href="/blog/manage" className="blog-btn blog-btn-outline" style={{ padding: '8px 16px', borderRadius: 20 }}>My Blog</a>
+        <a href="#" onClick={handleMyBlogClick} className="blog-btn blog-btn-outline" style={{ padding: '8px 16px', borderRadius: 20 }}>My Blog</a>
       </div>
 
       <div className="blog-container">
         {loading ? (
           <p style={{ textAlign: 'center' }}>Loading stories...</p>
+        ) : errorMsg ? (
+          <p style={{ textAlign: 'center' }}>{errorMsg}</p>
         ) : filtered.length === 0 ? (
           <p style={{ textAlign: 'center' }}>No stories found.</p>
         ) : (

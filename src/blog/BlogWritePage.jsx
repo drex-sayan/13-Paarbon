@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { getCurrentProfile } from "../auth";
+import DOMPurify from "dompurify";
 
 export function BlogWritePage() {
   const [profile, setProfile] = useState(null);
@@ -20,7 +21,7 @@ export function BlogWritePage() {
 
   useEffect(() => {
     getCurrentProfile().then(p => {
-      if (!p) window.location.href = "/login";
+      if (!p) window.location.href = "/login?redirect=/blog/write";
       else setProfile(p);
     });
     supabase.from('blog_categories').select('*').order('name').then(({data}) => {
@@ -64,26 +65,59 @@ export function BlogWritePage() {
     setSaving(true);
     let id = postId;
     
-    // Only generate slug on first save to keep URLs stable
-    const baseSlug = form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    let slug = baseSlug;
-    
+    const isEditor = profile.role === 'admin' || profile.role === 'editor';
+    const safeContent = DOMPurify.sanitize(form.content || "<p></p>", {
+      ALLOWED_TAGS: ['p', 'h2', 'h3', 'strong', 'em', 'blockquote', 'ul', 'ol', 'li', 'a', 'figure', 'img', 'figcaption', 'hr', 'br', 'span', 'div'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel']
+    });
+
     let currentStatus = status;
     if (status === 'REJECTED' || status === 'NEEDS_CHANGES') currentStatus = 'DRAFT'; 
     
+    if (status === 'PUBLISHED' && !isEditor) {
+      // Normal user editing a published post -> save to revisions table as DRAFT (autosave)
+      const { data, error } = await supabase.from('blog_post_revisions').upsert({
+          post_id: id,
+          author_id: profile.id,
+          title: form.title,
+          excerpt: form.excerpt,
+          content: safeContent,
+          cover_photo: form.cover_photo,
+          status: 'DRAFT',
+          copyright_confirmed: copyrightConfirmed,
+          copyright_confirmed_at: copyrightConfirmed ? new Date().toISOString() : null
+      }, { onConflict: 'post_id' }).select().single();
+      
+      if (error) console.error("Revision error", error);
+      setSaving(false);
+      return id;
+    }
+
     if (!id) {
-      slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
+      const baseSlug = form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      const { data: slugData } = await supabase.rpc('generate_unique_blog_slug', { base_slug: baseSlug });
+      const finalSlug = slugData || baseSlug;
+
       const { data, error } = await supabase.from('blog_posts').insert({
-        ...form, slug, author_id: profile.id, status: currentStatus
+        ...form, 
+        content: safeContent, 
+        slug: finalSlug, 
+        author_id: profile.id, 
+        status: 'DRAFT',
+        copyright_confirmed: copyrightConfirmed,
+        copyright_confirmed_at: copyrightConfirmed ? new Date().toISOString() : null
       }).select().single();
       
-      if (error) {
-        console.error("Save Draft Error:", error);
-      }
-      
+      if (error) console.error("Save Draft Error:", error);
       if (data) { setPostId(data.id); id = data.id; setStatus(data.status); }
     } else {
-      await supabase.from('blog_posts').update({ ...form, status: currentStatus }).eq('id', id);
+      await supabase.from('blog_posts').update({ 
+        ...form, 
+        content: safeContent, 
+        status: currentStatus,
+        copyright_confirmed: copyrightConfirmed,
+        copyright_confirmed_at: copyrightConfirmed ? new Date().toISOString() : null
+      }).eq('id', id);
     }
     
     if (id) {
@@ -111,29 +145,102 @@ export function BlogWritePage() {
     const finalId = await saveDraft() || postId;
     if (!finalId) return alert("Error saving draft. Please try again.");
     
-    await supabase.from('blog_posts').update({ status: 'PENDING_REVIEW', content: currentContent }).eq('id', finalId);
-    alert("Submitted for review!");
-    window.location.href = "/blog";
+    const isEditor = profile.role === 'admin' || profile.role === 'editor';
+    
+    if (isEditor) {
+       await supabase.rpc('publish_blog_post', { p_post_id: finalId });
+       alert("Published successfully!");
+       window.location.href = "/blog/manage";
+    } else {
+       const isRevision = status === 'PUBLISHED';
+       let targetId = finalId;
+       
+       if (isRevision) {
+         // Get the actual revision id
+         const { data: rev } = await supabase.from('blog_post_revisions').select('id').eq('post_id', finalId).single();
+         if (rev) targetId = rev.id;
+       }
+       
+       const { error } = await supabase.rpc('submit_blog_post_for_review', { p_id: targetId, p_is_revision: isRevision });
+       if (error) {
+         alert("Error submitting for review: " + error.message);
+         return;
+       }
+       alert(isRevision ? "Revision submitted for review! The original article remains published until approved." : "Submitted for review!");
+       window.location.href = "/blog/my";
+    }
+  };
+
+  const checkImageCount = () => {
+    const html = contentRef.current ? contentRef.current.innerHTML : form.content;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const inlineCount = div.getElementsByTagName('img').length;
+    const coverCount = form.cover_photo ? 1 : 0;
+    return inlineCount + coverCount;
   };
 
   const uploadImage = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Frontend File Validation
     if (file.size > 10 * 1024 * 1024) return alert("Max size 10MB");
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) return alert("Only JPEG, PNG, or WEBP images are allowed.");
+
+    if (checkImageCount() >= 5) {
+      alert("Maximum 5 images allowed per article (including cover).");
+      return;
+    }
+
+    // Force creating a draft if we don't have a post ID yet
+    let currentPostId = postId;
+    if (!currentPostId) {
+      if (!form.title) {
+         alert("Please enter a Title first before uploading images. We need to create a draft to store them securely.");
+         return;
+      }
+      currentPostId = await saveDraft();
+      if (!currentPostId) {
+         alert("Could not create draft. Image upload failed.");
+         return;
+      }
+    }
     
     const ext = file.name.split('.').pop();
-    const path = `${crypto.randomUUID()}.${ext}`;
+    const path = `${profile.id}/${currentPostId}/${crypto.randomUUID()}.${ext}`;
     
     setSaving(true);
-    const { error } = await supabase.storage.from('blog-image').upload(path, file);
+    const { error } = await supabase.storage.from('blog-images').upload(path, file);
     if (!error) {
-      const { data } = supabase.storage.from('blog-image').getPublicUrl(path);
+      const { data } = supabase.storage.from('blog-images').getPublicUrl(path);
+      
+      // Keep track in blog_images table
+      await supabase.from('blog_images').insert({
+          post_id: currentPostId,
+          storage_path: path,
+          caption: type === 'cover' ? 'Cover' : ''
+      });
+      
       if (type === 'cover') {
+        if (form.cover_photo) {
+          // Attempt to clean up old cover image
+          const oldUrl = form.cover_photo;
+          const oldPathMatch = oldUrl.match(/blog-images\/(.+)$/);
+          if (oldPathMatch && oldPathMatch[1]) {
+             const oldPath = oldPathMatch[1];
+             await supabase.storage.from('blog-images').remove([oldPath]);
+             await supabase.from('blog_images').delete().eq('storage_path', oldPath);
+          }
+        }
         setForm({ ...form, cover_photo: data.publicUrl });
       } else {
         const imgHtml = `<figure class="article-inline-image"><img src="${data.publicUrl}" /><figcaption class="article-image-caption">Caption</figcaption></figure><p><br></p>`;
         execCommand('insertHTML', imgHtml);
       }
+    } else {
+      alert("Upload failed: " + error.message);
     }
     setSaving(false);
   };
@@ -153,7 +260,7 @@ export function BlogWritePage() {
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 36, margin: '40px 0' }}>Write a Story</h2>
-        <a href="/blog/manage" className="blog-btn blog-btn-outline" style={{ display: 'block', textAlign: 'center' }}>My Posts / Manager</a>
+        <a href={profile.role === 'admin' || profile.role === 'editor' ? "/blog/manage" : "/blog/my"} className="blog-btn blog-btn-outline" style={{ display: 'block', textAlign: 'center' }}>My Posts</a>
       </div>
 
       {rejectionReason && (
@@ -232,10 +339,9 @@ export function BlogWritePage() {
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saving ? "Saving..." : postId ? `Draft saved (${status})` : ""}</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button className="blog-btn blog-btn-outline" onClick={() => window.location.href="/blog"}>Cancel</button>
-          <button className="blog-btn" onClick={submitReview}>Submit for Review</button>
+          <button className="blog-btn" onClick={submitReview}>Submit</button>
         </div>
       </div>
     </div>
   );
 }
-

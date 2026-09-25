@@ -12,7 +12,7 @@ const BACKGROUND = '/images/auth-bg.jpg';
 const TEXTURE = '/images/auth-texture.jpg';
 
 function AuthNav({ loggedIn }) {
-  return <nav className="auth-nav"><a href="/">HOME</a><a href="/pujo">PUJO</a><a href="#blog" onClick={e => e.preventDefault()}>BLOG</a><a href="/about">ABOUT</a>{loggedIn ? <a href="#" onClick={e => { e.preventDefault(); signOut(); }}>LOGOUT</a> : <a href="/login">LOGIN</a>}</nav>;
+  return <nav className="auth-nav"><a href="/">HOME</a><a href="/pujo">PUJO</a><a href="/blog">BLOG</a><a href="/about">ABOUT</a>{loggedIn ? <a href="#" onClick={e => { e.preventDefault(); signOut(); }}>LOGOUT</a> : <a href="/login">LOGIN</a>}</nav>;
 }
 
 function AuthButton({ children, ...props }) {

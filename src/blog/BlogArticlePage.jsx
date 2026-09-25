@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { getCurrentProfile } from "../auth";
+import DOMPurify from "dompurify";
 
 function SEO({ title, description, image, url }) {
   useEffect(() => {
@@ -31,33 +32,50 @@ export function BlogArticlePage({ slug }) {
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [relatedPujos, setRelatedPujos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [profile, setProfile] = useState(null);
   const [liked, setLiked] = useState(false);
   const [reportModal, setReportModal] = useState(false);
   const [reportReason, setReportReason] = useState("Inappropriate");
+  const [reportDesc, setReportDesc] = useState("");
 
   useEffect(() => {
-    getCurrentProfile().then(setProfile).catch(() => {});
-    async function load() {
+    async function init() {
+      try {
+        const prof = await getCurrentProfile();
+        setProfile(prof);
+      } catch (e) {}
+      
       const { data, error } = await supabase.from('blog_posts')
-        .select('*, blog_categories(name), profiles!blog_posts_author_id_fkey(username, avatar_url)')
+        .select('*, blog_categories(name), profiles!blog_posts_author_id_fkey(username)')
         .eq('slug', slug)
+        .is('deleted_at', null)
+        .eq('status', 'PUBLISHED')
         .single();
         
-      if (data) {
+      if (error) {
+        console.error("Fetch Post Error:", error);
+        if (error.code === 'PGRST116') {
+          // Zero rows returned (not found)
+          setPost(null);
+          setErrorMsg("Article not found.");
+        } else {
+          setPost(null);
+          setErrorMsg("Unable to load this article.");
+        }
+      } else if (data) {
         setPost(data);
-        supabase.from('blog_posts').update({ views: data.views + 1 }).eq('id', data.id).then();
+        supabase.rpc('increment_blog_post_view', { p_post_id: data.id }).then();
         
-        // Load related stories
         supabase.from('blog_posts')
           .select('id, slug, title, cover_photo, excerpt')
           .eq('category_id', data.category_id)
           .eq('status', 'PUBLISHED')
+          .is('deleted_at', null)
           .neq('id', data.id)
           .limit(3)
           .then(({ data: rel }) => setRelatedPosts(rel || []));
 
-        // Load related pujos
         supabase.from('blog_related_pujos')
           .select('pujos(id, name, location)')
           .eq('post_id', data.id)
@@ -67,7 +85,7 @@ export function BlogArticlePage({ slug }) {
       }
       setLoading(false);
     }
-    load();
+    init();
   }, [slug]);
 
   useEffect(() => {
@@ -78,32 +96,33 @@ export function BlogArticlePage({ slug }) {
   }, [post, profile]);
 
   const toggleLike = async () => {
-    if (!profile) return window.location.href = "/login";
-    if (liked) {
-      setLiked(false);
-      setPost(p => ({ ...p, like_count: p.like_count - 1 }));
-      await supabase.from('blog_likes').delete().eq('post_id', post.id).eq('user_id', profile.id);
-      await supabase.from('blog_posts').update({ like_count: post.like_count - 1 }).eq('id', post.id);
-    } else {
-      setLiked(true);
-      setPost(p => ({ ...p, like_count: p.like_count + 1 }));
-      await supabase.from('blog_likes').insert({ post_id: post.id, user_id: profile.id });
-      await supabase.from('blog_posts').update({ like_count: post.like_count + 1 }).eq('id', post.id);
+    if (!profile) return window.location.href = "/login?redirect=/blog/" + slug;
+    
+    // Optimistic UI update
+    setLiked(!liked);
+    setPost(p => ({ ...p, like_count: liked ? Math.max(0, p.like_count - 1) : p.like_count + 1 }));
+    
+    const rpcName = liked ? 'unlike_blog_post' : 'like_blog_post';
+    const { data: newCount, error } = await supabase.rpc(rpcName, { p_post_id: post.id });
+    
+    if (!error && typeof newCount === 'number') {
+      setPost(p => ({ ...p, like_count: newCount }));
     }
   };
 
-  const submitReport = async () => {
-    if (!profile) return window.location.href = "/login";
-    await supabase.from('blog_reports').insert({ post_id: post.id, user_id: profile.id, reason: reportReason });
-    setReportModal(false);
-    alert("Report submitted.");
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    const toast = document.createElement("div");
+    toast.innerText = "Link copied";
+    toast.className = "blog-toast";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
   };
 
   const share = (platform) => {
     const url = window.location.href;
     if (platform === 'copy') {
-      navigator.clipboard.writeText(url);
-      alert("Link copied!");
+      copyLink();
     } else if (platform === 'wa') {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(url)}`);
     } else if (platform === 'fb') {
@@ -113,8 +132,38 @@ export function BlogArticlePage({ slug }) {
     }
   };
 
-  if (loading) return <div className="article-page"><p style={{padding:100}}>Loading...</p></div>;
+  const submitReport = async () => {
+    if (!profile) return alert("Please log in to report.");
+    const { error } = await supabase.from('blog_reports').insert({ 
+      post_id: post.id, 
+      user_id: profile.id, 
+      reason: reportReason,
+      description: reportDesc
+    });
+    if (error) {
+       alert("Unable to report this story.");
+    } else {
+       setReportModal(false);
+       setReportDesc("");
+       const toast = document.createElement("div");
+       toast.innerText = "Report Submitted";
+       toast.className = "blog-toast";
+       document.body.appendChild(toast);
+       setTimeout(() => toast.remove(), 2500);
+    }
+  };
+
+  if (loading) return <div className="article-page"><p style={{padding:100}}>Loading article...</p></div>;
+  if (errorMsg) return <div className="article-page"><p style={{padding:100}}>{errorMsg}</p></div>;
   if (!post) return <div className="article-page"><p style={{padding:100}}>Article not found.</p></div>;
+
+  const publishedDate = post.published_at ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+  const updatedDate = (post.updated_at && post.updated_at !== post.published_at) ? new Date(post.updated_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  const sanitizedContent = DOMPurify.sanitize(post.content, {
+    ALLOWED_TAGS: ['p', 'h2', 'h3', 'strong', 'em', 'blockquote', 'ul', 'ol', 'li', 'a', 'figure', 'img', 'figcaption', 'hr', 'br', 'span', 'div'],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'rel']
+  });
 
   return (
     <div className="article-page">
@@ -129,26 +178,28 @@ export function BlogArticlePage({ slug }) {
         <div className="article-hero-content animate-reveal">
           <div className="article-meta-top">
             <span>{post.blog_categories?.name}</span>
-            <span>•</span>
-            <span>{new Date(post.published_at || post.created_at).toLocaleDateString()}</span>
+            <span>?</span>
+            <span>Published {publishedDate}{updatedDate && updatedDate !== publishedDate && ` (Updated ${updatedDate})`}</span>
           </div>
           <h1 className="article-title">{post.title}</h1>
           <p className="article-excerpt">{post.excerpt}</p>
           <div className="article-author-row">
-            <div className="article-avatar">{post.profiles?.username?.charAt(0) || 'A'}</div>
+            <div className="article-avatar">
+              {(post.profiles?.username?.[0] || 'A').toUpperCase()}
+            </div>
             <div>
-              <div className="article-author-name">{post.profiles?.username || 'Author'}</div>
+              <div className="article-author-name">{post.profiles?.username || 'Unknown'}</div>
               <div className="article-date">Author</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="article-body animate-reveal" dangerouslySetInnerHTML={{ __html: post.content }} />
+      <div className="article-body animate-reveal" dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
 
       <div className="article-actions animate-reveal">
         <button className={`btn-like ${liked ? 'liked' : ''}`} onClick={toggleLike}>
-          ♡ {post.like_count} Likes
+          ♥ {post.like_count} Likes
         </button>
         <div className="article-share">
           <button className="btn-like" onClick={() => share('copy')}>Copy Link</button>
@@ -166,7 +217,7 @@ export function BlogArticlePage({ slug }) {
             {relatedPujos.map(rp => (
               <a href={`/pujo/${rp.id}`} key={rp.id} className="blog-pujo-card">
                 <h4>{rp.name}</h4>
-                <p>Location / Maps →</p>
+                <p>Location / Maps +'</p>
               </a>
             ))}
           </div>
@@ -201,6 +252,9 @@ export function BlogArticlePage({ slug }) {
               <option>Spam</option>
               <option>Other</option>
             </select>
+            {(reportReason === 'Other' || reportReason === 'Copyright issue' || reportReason === 'Incorrect information') && (
+               <textarea className="blog-input" style={{marginTop: 12, width: '100%', minHeight: 80, boxSizing: 'border-box'}} placeholder="Please describe the issue..." value={reportDesc} onChange={e => setReportDesc(e.target.value)} />
+            )}
             <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
               <button className="blog-btn" onClick={submitReport}>Submit</button>
               <button className="blog-btn blog-btn-outline" onClick={() => setReportModal(false)}>Cancel</button>

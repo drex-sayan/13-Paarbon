@@ -54,7 +54,7 @@ function IntroSequence() {
           return <div key={frame.image} className="frame" style={{ opacity, zIndex: i === active + 1 ? 3 : 2 }}><img src={frame.image} alt="Durga Puja" style={{ objectPosition: frame.position, transform: `scale(${scale})` }} /></div>;
         })}
         <div className="vignette" />
-        <header className={`nav ${active > 0 ? "nav-scrolled" : ""}`}><nav><a href="/">HOME</a><a href="/pujo">PUJO</a><a href="#blog">BLOG</a><a href="#about">ABOUT</a><a href="/login">LOGIN</a></nav></header>
+        <header className={`nav ${active > 0 ? "nav-scrolled" : ""}`}><nav><a href="/">HOME</a><a href="/pujo">PUJO</a><a href="/blog">BLOG</a><a href="#about">ABOUT</a><a href="/login">LOGIN</a></nav></header>
         <div className={`hero-title ${active > 0 ? "hidden" : ""}`}><p>STORIES • FRAMES • JOURNEYS</p><h1>13 PAARBON</h1></div>
         <div className={`story-copy ${active > 0 ? "visible" : ""}`}><span>{frames[active].eyebrow}</span><p>{frames[active].text}</p></div>
         <div className="progress-dots">{frames.map((_, i) => <i key={i} className={i === active ? "active" : ""} />)}</div>
@@ -519,7 +519,7 @@ function PujoListPage() {
         style={{ backgroundImage: `url(${url})`, opacity: url === activeBgUrl ? 1 : 0 }} 
       />
     ))}
-    <nav className="pujo-nav"><ul><li><a href="/">Home</a></li><li><a href="/pujo" aria-current="page">Pujo</a></li><li><a href="#blog">Blog</a></li><li><a href="#about">About</a></li><li><a href="/login">Login</a></li></ul></nav>
+    <nav className="pujo-nav"><ul><li><a href="/">Home</a></li><li><a href="/pujo" aria-current="page">Pujo</a></li><li><a href="/blog">Blog</a></li><li><a href="#about">About</a></li><li><a href="/login">Login</a></li></ul></nav>
     <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control pujo-control--filter" disabled aria-label="Filter">
           <svg className="pujo-filter-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
             {/* top slider line */}
@@ -653,7 +653,7 @@ function PujoDetailPage({ pujo }) {
       }
     </div>
     <div className="detail-grain" />
-    <nav className="detail-nav"><a href="/">Home</a><a href="/pujo">Pujo</a><a href="#blog">Blog</a><a href="#about">About</a><a href="/login">Login</a></nav>
+    <nav className="detail-nav"><a href="/">Home</a><a href="/pujo">Pujo</a><a href="/blog">Blog</a><a href="#about">About</a><a href="/login">Login</a></nav>
     <section ref={heroRef} className="detail-hero">
       <aside className="detail-panel reveal-panel">
         <div className="detail-title">{pujo.name}</div>
@@ -814,20 +814,9 @@ function App() {
 
   useEffect(() => {
     const onHashChange = () => setHash(window.location.hash.toLowerCase());
-
-    const onDisabledNavigation = (event) => {
-      const link = event.target.closest?.('a[href="#blog"]');
-      if (link) {
-        event.preventDefault();
-        window.location.href = "/blog";
-      }
-    };
-
     window.addEventListener("hashchange", onHashChange);
-    document.addEventListener("click", onDisabledNavigation);
     return () => {
       window.removeEventListener("hashchange", onHashChange);
-      document.removeEventListener("click", onDisabledNavigation);
     };
   }, []);
 
@@ -842,6 +831,15 @@ function App() {
   if (path === "/blog") return <Suspense fallback={fallback}><BlogListPage /></Suspense>;
   if (path === "/blog/write") return <Suspense fallback={fallback}><BlogWritePage /></Suspense>;
   if (path === "/blog/manage") return <Suspense fallback={fallback}><BlogManagerPage /></Suspense>;
+  if (path.startsWith("/blog/manage/review/")) {
+      const id = path.split("/").pop();
+      const BlogReviewPage = React.lazy(() => import("./blog/BlogReviewPage").then(m => ({ default: m.BlogReviewPage })));
+      return <Suspense fallback={fallback}><BlogReviewPage id={id} /></Suspense>;
+  }
+  if (path === "/blog/my") {
+      const MyBlogPage = React.lazy(() => import("./blog/MyBlogPage").then(m => ({ default: m.MyBlogPage })));
+      return <Suspense fallback={fallback}><MyBlogPage /></Suspense>;
+  }
   if (path.startsWith("/blog/")) {
     const slug = decodeURIComponent(path.slice("/blog/".length));
     return <Suspense fallback={fallback}><BlogArticlePage slug={slug} /></Suspense>;
