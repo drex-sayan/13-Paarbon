@@ -63,18 +63,27 @@ export function BlogWritePage() {
     if (!profile || !form.title) return;
     setSaving(true);
     let id = postId;
-    const slug = form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    
+    // Only generate slug on first save to keep URLs stable
+    const baseSlug = form.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    let slug = baseSlug;
     
     let currentStatus = status;
     if (status === 'REJECTED' || status === 'NEEDS_CHANGES') currentStatus = 'DRAFT'; 
     
     if (!id) {
+      slug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
       const { data, error } = await supabase.from('blog_posts').insert({
         ...form, slug, author_id: profile.id, status: currentStatus
       }).select().single();
+      
+      if (error) {
+        console.error("Save Draft Error:", error);
+      }
+      
       if (data) { setPostId(data.id); id = data.id; setStatus(data.status); }
     } else {
-      await supabase.from('blog_posts').update({ ...form, slug, status: currentStatus }).eq('id', id);
+      await supabase.from('blog_posts').update({ ...form, status: currentStatus }).eq('id', id);
     }
     
     if (id) {
@@ -85,25 +94,24 @@ export function BlogWritePage() {
       }
     }
     setSaving(false);
+    return id;
   };
 
   const submitReview = async () => {
     if (!copyrightConfirmed) return alert("You must confirm copyright ownership.");
     
-    // Fallback to ref in case state is lagging
     const currentContent = contentRef.current ? contentRef.current.innerHTML : form.content;
     
     if (!form.title) return alert("Please add a Title before submitting.");
     if (!currentContent || currentContent === "<br>") return alert("Please add some Content before submitting.");
     if (!form.cover_photo) return alert("Please upload a Cover Photo before submitting.");
     
-    // Ensure form state has latest content before saving
     setForm({...form, content: currentContent});
     
-    await saveDraft();
-    if (!postId) return;
+    const finalId = await saveDraft() || postId;
+    if (!finalId) return alert("Error saving draft. Please try again.");
     
-    await supabase.from('blog_posts').update({ status: 'PENDING_REVIEW', content: currentContent }).eq('id', postId);
+    await supabase.from('blog_posts').update({ status: 'PENDING_REVIEW', content: currentContent }).eq('id', finalId);
     alert("Submitted for review!");
     window.location.href = "/blog";
   };
