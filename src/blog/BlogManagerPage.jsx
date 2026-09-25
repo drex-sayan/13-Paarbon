@@ -104,8 +104,23 @@ export function BlogManagerPage() {
     loadData(profile);
   };
 
-  const softDelete = async (id) => {
-    await supabase.from('blog_posts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
+
+  const confirmDelete = (id) => {
+    setDeleteModal({ open: true, id });
+  };
+
+  const submitDelete = async () => {
+    if (!deleteModal.id) return;
+    const { error } = await supabase.rpc('delete_blog_post', { p_id: deleteModal.id });
+    if (error) alert("Error deleting post: " + error.message);
+    setDeleteModal({ open: false, id: null });
+    loadData(profile);
+  };
+
+  const restorePost = async (id) => {
+    const { error } = await supabase.rpc('restore_blog_post', { p_id: id });
+    if (error) alert("Error restoring post: " + error.message);
     loadData(profile);
   };
 
@@ -171,7 +186,7 @@ export function BlogManagerPage() {
                 <td style={{ display: 'flex', gap: 8 }}>
                   <a href={`/blog/${p.slug}`} className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }} target="_blank">View</a>
                   <a href={`/blog/write?id=${p.id}`} className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }}>Edit</a>
-                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: 'var(--red)' }} onClick={() => softDelete(p.id)}>Delete</button>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#d9381e', color: '#fff' }} onClick={() => confirmDelete(p.id)}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -186,13 +201,16 @@ export function BlogManagerPage() {
       if (activeTab === 'Trash') filtered = posts.filter(p => p.deleted_at);
       return (
         <table className="blog-table">
-          <thead><tr><th>Title</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Title</th><th>Status</th>{activeTab === 'Trash' && <th>Deleted Date</th>}<th>Actions</th></tr></thead>
           <tbody>
             {filtered.map(p => (
               <tr key={p.id}>
                 <td>{p.title}</td><td>{p.status}</td>
+                {activeTab === 'Trash' && <td>{new Date(p.deleted_at).toLocaleDateString()}</td>}
                 <td style={{ display: 'flex', gap: 8 }}>
                   {activeTab !== 'Trash' && <a href={`/blog/write?id=${p.id}`} className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }}>Edit</a>}
+                  {activeTab !== 'Trash' && <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#d9381e', color: '#fff' }} onClick={() => confirmDelete(p.id)}>Delete</button>}
+                  {activeTab === 'Trash' && <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#2e7d32', color: '#fff' }} onClick={() => restorePost(p.id)}>Restore</button>}
                 </td>
               </tr>
             ))}
@@ -215,7 +233,7 @@ export function BlogManagerPage() {
                   <td>{c.name}</td><td>{c.slug}</td>
                   <td style={{ display: 'flex', gap: 8 }}>
                     <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => editCategory(c.id, c.name)}>Edit</button>
-                    <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: 'var(--red)' }} onClick={() => deleteCategory(c.id)}>Delete</button>
+                    <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#d9381e' }} onClick={() => deleteCategory(c.id)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -232,7 +250,7 @@ export function BlogManagerPage() {
             {reports.map(r => (
               <tr key={r.id}>
                 <td>{r.blog_posts?.title}</td><td>{r.profiles?.username}</td><td>{r.reason}</td><td>{r.description || '-'}</td>
-                <td><button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: 'var(--green)' }} onClick={() => resolveReport(r.id)}>Resolve</button></td>
+                <td><button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#2e7d32' }} onClick={() => resolveReport(r.id)}>Resolve</button></td>
               </tr>
             ))}
           </tbody>
@@ -268,6 +286,19 @@ export function BlogManagerPage() {
             <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
               <button className="blog-btn" onClick={submitReject}>Submit</button>
               <button className="blog-btn blog-btn-outline" onClick={() => setRejectModal({ open: false, id: null, type: '', isRevision: false })}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModal.open && (
+        <div className="blog-modal-backdrop">
+          <div className="blog-modal">
+            <h3>Delete this story?</h3>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>This will remove the story from the public Blog. It can be restored by an administrator.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="blog-btn blog-btn-outline" onClick={() => setDeleteModal({ open: false, id: null })}>Cancel</button>
+              <button className="blog-btn" style={{ background: '#d9381e', color: '#fff' }} onClick={submitDelete}>Delete</button>
             </div>
           </div>
         </div>
