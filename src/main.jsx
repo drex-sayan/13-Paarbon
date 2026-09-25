@@ -72,19 +72,35 @@ function randomId() {
 async function loadPujos() {
   const { data, error } = await supabase
     .from("pujos")
-    .select("id, name, theme, description, location, created_at")
+    .select("id, name, theme, description, location, created_at, background_photo_id, photos!photos_pujo_id_fkey(id, storage_path, sort_order, created_at)")
     .order("created_at", { ascending: true });
 
   if (error) throw error;
 
-  return (data || []).map(p => ({
-    id: p.id,
-    name: p.name,
-    theme: p.theme || "",
-    description: p.description || "",
-    location: p.location || "",
-    createdAt: p.created_at
-  }));
+  return (data || []).map(p => {
+    const sortedPhotos = (p.photos || []).sort((a, b) => {
+      if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+
+    let bgPhoto = sortedPhotos.find(photo => photo.id === p.background_photo_id) || sortedPhotos[0];
+    let bgUrl = null;
+    if (bgPhoto) {
+      const { data: publicData } = supabase.storage.from("pujo-images").getPublicUrl(bgPhoto.storage_path);
+      bgUrl = publicData.publicUrl;
+    }
+
+    return {
+      id: p.id,
+      name: p.name,
+      theme: p.theme || "",
+      description: p.description || "",
+      location: p.location || "",
+      createdAt: p.created_at,
+      backgroundPhotoId: p.background_photo_id,
+      bgUrl: bgUrl
+    };
+  });
 }
 
 async function createPujo(pujo) {
@@ -122,6 +138,14 @@ async function updatePujo(pujoId, changes) {
 
   if (error) throw error;
   return data;
+}
+
+async function setPujoBackground(pujoId, photoId) {
+  const { error } = await supabase
+    .from("pujos")
+    .update({ background_photo_id: photoId })
+    .eq("id", pujoId);
+  if (error) throw error;
 }
 
 async function getPhotos(pujoId) {
@@ -304,6 +328,7 @@ function PujoListPage() {
   const [created, setCreated] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [hoveredPujoId, setHoveredPujoId] = useState(null);
 
   useEffect(() => {
     getCurrentProfile().then(setProfile).catch(() => setProfile(null));
@@ -328,17 +353,96 @@ function PujoListPage() {
     if (!q) return pujos;
     return pujos.filter(p => p.name.toLocaleLowerCase().includes(q.toLocaleLowerCase()) || p.id.includes(q));
   }, [pujos, query]);
+
+  const [activeBgUrls, setActiveBgUrls] = useState(new Set());
+
+  const activePujo = hoveredPujoId ? pujos.find(p => p.id === hoveredPujoId) : null;
+  const activeBgUrl = activePujo?.bgUrl || null;
+
+  useEffect(() => {
+    if (activeBgUrl) {
+      setActiveBgUrls(prev => {
+        if (prev.has(activeBgUrl)) return prev;
+        const next = new Set(prev);
+        next.add(activeBgUrl);
+        return next;
+      });
+    }
+  }, [activeBgUrl]);
+
+  useEffect(() => {
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    if (!isMobile) return;
+
+    let intersecting = new Set();
+    let hasScrolled = false;
+    let currentHover = null;
+    
+    const applyIntersection = () => {
+      if (!hasScrolled) return;
+      const nextId = intersecting.size > 0 ? Array.from(intersecting)[0] : null;
+      if (nextId !== currentHover) {
+        currentHover = nextId;
+        setHoveredPujoId(nextId);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          const id = entry.target.getAttribute('data-pujo-id');
+          if (entry.isIntersecting) {
+            intersecting.add(id);
+          } else {
+            intersecting.delete(id);
+          }
+        });
+        applyIntersection();
+      },
+      {
+        rootMargin: "-40% 0px -40% 0px",
+        threshold: 0
+      }
+    );
+
+    const onScroll = () => {
+      if (!hasScrolled) {
+        hasScrolled = true;
+        applyIntersection();
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    const rows = document.querySelectorAll('.pujo-row');
+    rows.forEach(r => observer.observe(r));
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      observer.disconnect();
+      setHoveredPujoId(null);
+    };
+  }, [filtered]);
+
   return <main className="pujo-page"><div className="pujo pujo-list-page">
     <div className="pujo__background" />
+    {Array.from(activeBgUrls).map(url => (
+      <div 
+        key={url}
+        className="pujo__background--dynamic" 
+        style={{ backgroundImage: `url(${url})`, opacity: url === activeBgUrl ? 1 : 0 }} 
+      />
+    ))}
     <nav className="pujo-nav"><ul><li><a href="/">Home</a></li><li><a href="/pujo" aria-current="page">Pujo</a></li><li><a href="#blog">Blog</a></li><li><a href="#about">About</a></li><li><a href="/login">Login</a></li></ul></nav>
     <section className="pujo-toolbar"><label className="pujo-search"><span className="sr-only">Search your Pujo</span><input type="search" placeholder="Search your Pujo" value={query} onChange={e => setQuery(e.target.value)} /></label><button className="pujo-control" disabled>Filter</button>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="pujo-control pujo-control--add" onClick={() => setAdding(true)}>Add Pujo</button>}</section>
     <section className="pujo-list-wrap">
       <div className="pujo-list">
-        {filtered.map((p, i) => <a key={p.id} className="pujo-row" href={`/pujo/${encodeURIComponent(p.id)}`}>
+        {filtered.map((p, i) => <a key={p.id} data-pujo-id={p.id} className="pujo-row" href={`/pujo/${encodeURIComponent(p.id)}`} onMouseEnter={() => setHoveredPujoId(p.id)} onMouseLeave={() => setHoveredPujoId(null)} onFocus={() => setHoveredPujoId(p.id)} onBlur={() => setHoveredPujoId(null)} onClick={() => { if (window.matchMedia("(pointer: coarse)").matches) setHoveredPujoId(null); }}>
           <span className="pujo-row__name">{i + 1}. {p.name}</span>
           <span className="pujo-row__right">
             <small className="pujo-row__id">{p.id}</small>
             <span className="pujo-row__direction" onClick={e => {
+              e.stopPropagation();
               e.preventDefault();
               const url = p.location || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
               window.open(url, "_blank", "noopener,noreferrer");
@@ -362,6 +466,7 @@ function PujoListPage() {
 function PujoDetailPage({ pujo }) {
   const [profile, setProfile] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [bgId, setBgId] = useState(pujo.backgroundPhotoId);
   const heroRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
@@ -455,15 +560,24 @@ function PujoDetailPage({ pujo }) {
     </section>
     <section className="detail-gallery" id="gallery">
       <div className="gallery-heading"><span>Gallery</span><small>{Math.min(photos.length,10)} / 10</small></div>
-      {photos.length ? <div className={`gallery-grid count-${Math.min(photos.length,10)}`}>{urls.map((p, i) => <figure key={p.key} className={`gallery-item item-${i}`}><img src={p.url} alt={`${pujo.name} ${i + 1}`} /><figcaption className="gallery-item-actions"><button className="gallery-expand" aria-label="Expand image" onClick={e => { e.stopPropagation(); setLightbox(p); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button><a className="gallery-download" href={p.url} download={p.name} aria-label="Download image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <button className="gallery-delete" aria-label="Delete photo" onClick={async e => {
+      {photos.length ? <div className={`gallery-grid count-${Math.min(photos.length,10)}`}>{urls.map((p, i) => <figure key={p.key} className={`gallery-item item-${i}`}><img src={p.url} alt={`${pujo.name} ${i + 1}`} /><figcaption className="gallery-item-actions"><button className="gallery-expand" aria-label="Expand image" onClick={e => { e.stopPropagation(); setLightbox(p); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button><a className="gallery-download" href={p.url} download={p.name} aria-label="Download image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>{(profile?.role === ROLES.EDITOR || profile?.role === ROLES.ADMIN) && <>
+        {bgId === p.id ? <span className="gallery-bg-indicator">Background</span> : <button className="gallery-set-bg" onClick={async e => {
+          e.stopPropagation();
+          try {
+            await setPujoBackground(pujo.id, p.id);
+            setBgId(p.id);
+          } catch(err) { console.error(err); }
+        }}>Set BG</button>}
+        <button className="gallery-delete" aria-label="Delete photo" onClick={async e => {
   e.stopPropagation();
   try {
     await deletePhoto(p);
+    if (bgId === p.id) { await setPujoBackground(pujo.id, null); setBgId(null); }
     setPhotos(await getPhotos(pujo.id));
   } catch (err) {
     console.error(err);
   }
-}}>×</button>}</figcaption></figure>)}</div> : <div className="gallery-empty">No photos yet.</div>}
+}}>×</button></>}</figcaption></figure>)}</div> : <div className="gallery-empty">No photos yet.</div>}
     </section>
     {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onDownload={() => { const a = document.createElement('a'); a.href = lightbox.url; a.download = lightbox.name; a.click(); }} />}
     {uploading && <div className="upload-status"><span className="upload-ring" />Uploading photos…</div>}
