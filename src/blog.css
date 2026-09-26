@@ -490,6 +490,13 @@
   align-items: center;
 }
 
+.article-share {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .btn-like {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.3);
