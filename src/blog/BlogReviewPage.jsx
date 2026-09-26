@@ -91,9 +91,9 @@ export function BlogReviewPage({ id }) {
             </div>
             
             <div style={{ display: 'flex', gap: 16, marginBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 24 }}>
-                <button className="blog-btn" style={{ background: 'var(--green)' }} onClick={handleApprove}>Approve & Publish</button>
-                <button className="blog-btn" style={{ background: 'var(--orange)' }} onClick={() => setRejectModal({ open: true, type: 'NEEDS_CHANGES' })}>Request Changes</button>
-                <button className="blog-btn" style={{ background: 'var(--red)' }} onClick={() => setRejectModal({ open: true, type: 'REJECTED' })}>Reject</button>
+                <button className="blog-btn" style={{ background: '#2e7d32', color: '#fff' }} onClick={handleApprove}>Approve & Publish</button>
+                <button className="blog-btn" style={{ background: '#f57c00', color: '#fff' }} onClick={() => setRejectModal({ open: true, type: 'NEEDS_CHANGES' })}>Request Changes</button>
+                <button className="blog-btn" style={{ background: '#d9381e', color: '#fff' }} onClick={() => setRejectModal({ open: true, type: 'REJECTED' })}>Reject</button>
             </div>
             
             <div style={{ marginBottom: 40 }}>
