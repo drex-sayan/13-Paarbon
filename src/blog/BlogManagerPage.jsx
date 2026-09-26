@@ -144,6 +144,13 @@ export function BlogManagerPage() {
               <tr key={p.id}>
                 <td>{p.title}</td><td>{p.profiles?.username}</td><td>{new Date(p.created_at).toLocaleDateString()}</td>
                 <td style={{ display: 'flex', gap: 8 }}>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#2e7d32', color: '#fff' }} onClick={async () => {
+                      const { error } = await supabase.rpc('publish_blog_post', { p_post_id: p.id });
+                      if (error) alert("Error approving: " + error.message);
+                      loadData(profile);
+                  }}>Approve</button>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#f57c00', color: '#fff' }} onClick={() => setRejectModal({ open: true, id: p.id, type: 'NEEDS_CHANGES', isRevision: false })}>Request Changes</button>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#d9381e', color: '#fff' }} onClick={() => setRejectModal({ open: true, id: p.id, type: 'REJECTED', isRevision: false })}>Reject</button>
                   <a href={`/blog/manage/review/${p.id}`} className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }}>Review</a>
                 </td>
               </tr>
@@ -161,6 +168,13 @@ export function BlogManagerPage() {
               <tr key={p.id}>
                 <td>{p.blog_posts?.title} (Revision)</td><td>{p.profiles?.username}</td><td>{new Date(p.updated_at).toLocaleDateString()}</td>
                 <td style={{ display: 'flex', gap: 8 }}>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#2e7d32', color: '#fff' }} onClick={async () => {
+                      const { error } = await supabase.rpc('approve_blog_post_revision', { p_revision_id: p.id });
+                      if (error) alert("Error approving: " + error.message);
+                      loadData(profile);
+                  }}>Approve</button>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#f57c00', color: '#fff' }} onClick={() => setRejectModal({ open: true, id: p.id, type: 'NEEDS_CHANGES', isRevision: true })}>Request Changes</button>
+                  <button className="blog-btn" style={{ padding: '4px 8px', fontSize: 12, background: '#d9381e', color: '#fff' }} onClick={() => setRejectModal({ open: true, id: p.id, type: 'REJECTED', isRevision: true })}>Reject</button>
                   <a href={`/blog/manage/review/${p.id}`} className="blog-btn" style={{ padding: '4px 8px', fontSize: 12 }}>Review</a>
                 </td>
               </tr>
