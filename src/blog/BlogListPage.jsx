@@ -139,9 +139,9 @@ export function BlogListPage() {
         ))}
       </div>
 
-      <div className="blog-search-wrap animate-reveal" style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center' }}>
+      <div className="blog-search-wrap animate-reveal" style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', padding: '0 24px' }}>
         <input className="blog-search-input" placeholder="Search stories..." value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} />
-        <a href="#" onClick={handleMyBlogClick} className="blog-btn blog-btn-outline" style={{ padding: '8px 16px', borderRadius: 20 }}>My Blog</a>
+        <a href="#" onClick={handleMyBlogClick} className="blog-btn blog-btn-outline" style={{ padding: '8px 16px', borderRadius: 20, whiteSpace: 'nowrap' }}>My Blog</a>
       </div>
 
       <div className="blog-container">
