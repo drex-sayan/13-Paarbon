@@ -83,21 +83,22 @@
   -webkit-backdrop-filter: blur(10px);
   padding: 16px 24px;
   display: flex;
-  justify-content: center;
   gap: 16px;
   border-bottom: 1px solid rgba(239, 229, 212, 0.1);
   overflow-x: auto;
   white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Foolproof safe centering for horizontal scroll */
+.blog-categories::before,
+.blog-categories::after {
+  content: '';
+  margin: auto;
 }
 
 .blog-categories::-webkit-scrollbar {
   display: none; /* Hide scrollbar for cleaner look */
-}
-
-@media (max-width: 768px) {
-  .blog-categories {
-    justify-content: flex-start;
-  }
 }
 
 .blog-category-btn {
