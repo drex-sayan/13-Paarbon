@@ -64,13 +64,11 @@ function RoleCard({ role, hiddenish, onGoogleSignIn, onGoogleSignUp }) {
     <article className={`auth-user-login-card animate-reveal ${hiddenish ? 'auth-role-card-admin' : ''}`} style={{ margin: '15px auto', width: 'min(400px, 94vw)', padding: '30px 20px' }}>
       <div className="auth-user-card-inner">
         <div className="auth-dhak-icon" style={{ marginBottom: '15px' }}>
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-             {role === ROLES.ADMIN ? (
-               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-             ) : (
-               <path d="M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-             )}
-          </svg>
+          {role === ROLES.ADMIN ? (
+            <img src="/images/admin-icon.png" alt="Admin" width="120" height="120" style={{objectFit:'contain'}} />
+          ) : (
+            <img src="/images/editor-icon.png" alt="Editor" width="88" height="88" style={{objectFit:'contain'}} />
+          )}
         </div>
         <h1 className="auth-user-title" style={{ fontSize: '20px' }}>{title}</h1>
         <p className="auth-user-subtitle" style={{ marginBottom: '25px', fontSize: '13px' }}>{subtitle}</p>
@@ -234,13 +232,7 @@ export default function AuthPage() {
         <section className="auth-user-login-card animate-reveal">
           <div className="auth-user-card-inner">
             <div className="auth-dhak-icon">
-              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 6c0-1.5 5-2 5-2s5 .5 5 2v12c0 1.5-5 2-5 2s-5-.5-5-2V6z"></path>
-                <path d="M7 6c0 1.5 5 2 5 2s5-.5 5-2"></path>
-                <path d="M7 18c0 1.5 5 2 5 2s5-.5 5-2"></path>
-                <line x1="2" y1="12" x2="7" y2="10"></line>
-                <line x1="22" y1="12" x2="17" y2="10"></line>
-              </svg>
+              <img src="/images/dhak-icon.png" alt="Dhak" width="64" height="64" style={{objectFit:'contain'}} />
             </div>
             <h1 className="auth-user-title">USER LOGIN</h1>
             <p className="auth-user-subtitle">Sign in to explore Pujo events, blogs and more.</p>
