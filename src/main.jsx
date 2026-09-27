@@ -745,7 +745,7 @@ function AboutPage() {
         <nav aria-label="Primary navigation">
           <a href="/">HOME</a>
           <a href="/pujo">PUJO</a>
-          <span className="about-disabled-link" aria-disabled="true">BLOG</span>
+          <a href="/blog">BLOG</a>
           <a href="/about" aria-current="page">ABOUT</a>
           <a href="/login">LOGIN</a>
         </nav>
