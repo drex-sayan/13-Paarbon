@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
 import {
-  ROLES, roleLabel, getCurrentProfile, requestReactivation, signInWithUsername, signInWithGoogle, beginGoogleRoleApplication,
+  ROLES, roleLabel, getCurrentProfile, requestReactivation, signInWithGoogle, beginGoogleRoleApplication,
   signUpWithEmail, resendEmailVerification, verifyEmailOtp, finalizeRegistration, requestEditorReapply,
-  sendPasswordReset, updatePassword, updateOwnProfile, signOut, selfDeleteAccount,
+  updatePassword, updateOwnProfile, signOut, selfDeleteAccount,
   adminListEditorApplications, adminListAdminApplications, adminListPeople,
   adminDecideEditor, adminDecideAdmin, adminSetStatus, adminChangeRole, adminDeactivateAdmin, adminDeleteAccount,
 } from './auth';
@@ -56,109 +56,42 @@ function AuthPopup() {
   </div>;
 }
 
-function RoleCard({ role, hiddenish, onLogin, onRegister }) {
-  const title = role === ROLES.ADMIN ? 'ADMIN LOGIN' : role === ROLES.EDITOR ? 'Editor LOGIN' : 'USER LOGIN';
-  return <article className={`auth-role-card ${hiddenish ? 'auth-role-card-admin' : ''}`}>
-    <div className="auth-role-title">{title}</div>
-    <div className="auth-role-actions">
-      <AuthButton onClick={onLogin}>Sign in</AuthButton>
-      <div className="auth-or">/</div>
-      <AuthButton onClick={onRegister}>Create a<br/>Account</AuthButton>
-    </div>
-  </article>;
+function RoleCard({ role, hiddenish, onGoogleSignIn, onGoogleSignUp }) {
+  const title = role === ROLES.ADMIN ? 'ADMIN LOGIN' : role === ROLES.EDITOR ? 'EDITOR LOGIN' : 'USER LOGIN';
+  const subtitle = role === ROLES.ADMIN ? 'Sign in to access the admin dashboard.' : 'Sign in to manage and review content.';
+  
+  return (
+    <article className={`auth-user-login-card animate-reveal ${hiddenish ? 'auth-role-card-admin' : ''}`} style={{ margin: '15px auto', width: 'min(400px, 94vw)', padding: '30px 20px' }}>
+      <div className="auth-user-card-inner">
+        <div className="auth-dhak-icon" style={{ marginBottom: '15px' }}>
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+             {role === ROLES.ADMIN ? (
+               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+             ) : (
+               <path d="M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+             )}
+          </svg>
+        </div>
+        <h1 className="auth-user-title" style={{ fontSize: '20px' }}>{title}</h1>
+        <p className="auth-user-subtitle" style={{ marginBottom: '25px', fontSize: '13px' }}>{subtitle}</p>
+        
+        <button className="auth-google-main-btn" onClick={onGoogleSignIn}>
+          <svg width="20" height="20" viewBox="0 0 48 48" style={{marginRight: '12px'}}>
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continue with Google
+        </button>
+        <p className="auth-small-copy" style={{ marginTop: '16px', opacity: 0.9 }}>
+          Don't have an account? <button className="auth-link-button" onClick={onGoogleSignUp}>Create one with Google</button>
+        </p>
+      </div>
+    </article>
+  );
 }
 
-function LoginForm({ role, onClose, onForgot, onSuccess }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const title = role === ROLES.ADMIN ? 'Admin Sign-in' : role === ROLES.EDITOR ? 'Editor Sign-in' : 'User Sign-in';
-
-  const submit = async e => {
-    e.preventDefault(); setError(''); setBusy(true);
-    try { await signInWithUsername({ username, password, role }); onSuccess(); }
-    catch (err) { setError(err?.message || 'Sign in failed.'); }
-    finally { setBusy(false); }
-  };
-
-  return <div className="auth-modal-shell">
-    <button className="auth-close" onClick={onClose}>×</button>
-    <div className="auth-modal-title">{title}</div>
-    <form className="auth-form" onSubmit={submit}>
-      <Field label={`Enter your ${role === ROLES.ADMIN ? 'Admin' : role === ROLES.EDITOR ? 'Editor' : 'User'} ID / Username`} value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" required />
-      <Field label="Enter Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" required />
-      <AuthButton type="submit" disabled={busy}>{busy ? 'Signing In…' : 'Sign In'}</AuthButton>
-      <button type="button" className="auth-link-button" onClick={onForgot}>Forgot Password?</button>
-      <div className="auth-or-text">OR</div>
-      <AuthButton type="button" onClick={async()=>{setError('');try{await signInWithGoogle(role)}catch(e){setError(e?.message||'Google sign in failed.')}}}>SIGN-IN WITH GOOGLE</AuthButton>
-      <Message>{error}</Message>
-      {error.toLowerCase().includes('disabled') && <button type="button" className="auth-link-button" onClick={async()=>{try{await requestReactivation(username,role);setError('');showAuthPopup('Reactivation request sent to Admin.','success')}catch(e){setError(e?.message||'Could not request reactivation.')}}}>REQUEST REACTIVATION</button>}
-    </form>
-  </div>;
-}
-
-function RegistrationForm({ role, onClose, onSuccess }) {
-  const [form,setForm]=useState({name:'',email:'',username:'',password:'',confirm:''});
-  const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [sent,setSent]=useState(false); const [emailOtp,setEmailOtp]=useState(''); const [emailVerified,setEmailVerified]=useState(false);
-  const set=(key)=>(e)=>setForm(v=>({...v,[key]:e.target.value}));
-  const submit=async e=>{
-    e.preventDefault(); setError('');
-    if(form.password.length<8){setError('Password must be at least 8 characters.');return;}
-    if(form.password!==form.confirm){setError('Passwords do not match.');return;}
-    setBusy(true);
-    try { await signUpWithEmail({...form,role}); setSent(true); }
-    catch(err){setError(err?.message||'Could not create account.');}
-    finally{setBusy(false)}
-  };
-  const roleText=roleLabel(role);
-  const verifyEmail=async()=>{setError('');setBusy(true);try{await verifyEmailOtp(form.email,emailOtp);setEmailVerified(true)}catch(e){setError(e?.message||'Invalid email OTP.')}finally{setBusy(false)}};
-  return <div className="auth-modal-shell auth-register-shell">
-    <button className="auth-close" onClick={onClose}>×</button>
-    <div className="auth-modal-title">{roleText} Create Account</div>
-    {sent && !emailVerified ? <div className="auth-success-stage">
-      <h3>VERIFY YOUR GMAIL</h3><p>We sent a verification code to <strong>{form.email}</strong>.</p><Field label="Enter OTP" inputMode="numeric" value={emailOtp} onChange={e=>setEmailOtp(e.target.value)}/><AuthButton onClick={verifyEmail} disabled={busy}>{busy?'VERIFYING…':'VERIFY'}</AuthButton><div className="auth-inline-buttons"><button className="auth-link-button" onClick={async()=>{try{await resendEmailVerification(form.email);setError('Email OTP resent.')}catch(e){setError(e?.message||'Could not resend email.')}}}>RESEND OTP</button></div><p className="auth-small-copy">Enter the 6-digit OTP sent to your Gmail.</p><Message>{error}</Message>
-    </div> : sent && emailVerified ? <EmailVerifiedCompletion role={role} onComplete={onSuccess}/> : <form className="auth-form" onSubmit={submit}>
-      <Field label="Enter Your Name" value={form.name} onChange={set('name')} required />
-      <Field label="Enter your Gmail ID" type="email" value={form.email} onChange={set('email')} autoComplete="email" required />
-      <Field label={`Enter a ${roleText} Username`} value={form.username} onChange={set('username')} autoComplete="username" required />
-      <Field label="Create Password" type="password" value={form.password} onChange={set('password')} autoComplete="new-password" required />
-      <Field label="Confirm Password" type="password" value={form.confirm} onChange={set('confirm')} autoComplete="new-password" required />
-      <AuthButton type="submit" disabled={busy}>{busy?'Creating Account…':'Create Account'}</AuthButton>
-      <div className="auth-or-text">OR</div>
-      <AuthButton type="button" onClick={async()=>{setError('');try{await signInWithGoogle(role)}catch(e){setError(e?.message||'Google sign in failed.')}}}>LOGIN WITH GOOGLE</AuthButton>
-      <Message>{error}</Message>
-    </form>}
-  </div>;
-}
-
-function ForgotPassword({ role, onClose }) {
-  const [username,setUsername]=useState(''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
-  const submit=async e=>{e.preventDefault();setBusy(true);setMessage('');setError('');try{await sendPasswordReset(username,role);setMessage('Password reset instructions have been sent to the verified email address on this account.');}catch(err){setError(err?.message||'Could not start password recovery.')}finally{setBusy(false)}};
-  return <div className="auth-modal-shell"><button className="auth-close" onClick={onClose}>×</button><div className="auth-modal-title">Forgot Password</div><form className="auth-form" onSubmit={submit}><Field label={`${roleLabel(role)} Username`} value={username} onChange={e=>setUsername(e.target.value)} required/><p className="auth-small-copy">Recovery uses the verified email address on this account.</p><AuthButton disabled={busy}>{busy?'Sending…':'SEND RESET EMAIL'}</AuthButton><Message type="success">{message}</Message><Message>{error}</Message></form></div>;
-}
-
-function EmailVerifiedCompletion({ role, onComplete }) {
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState('');
-  const complete=async()=>{
-    setBusy(true); setError('');
-    try {
-      await finalizeRegistration();
-      onComplete();
-    } catch (e) {
-      setError(e?.message || 'Could not complete account registration.');
-    } finally { setBusy(false); }
-  };
-  useEffect(()=>{ complete(); },[]);
-  return <div className="auth-verification-stage">
-    <div className="auth-modal-title">EMAIL VERIFIED</div>
-    <p>{role === ROLES.EDITOR ? 'Your email is verified. Your Editor application is being submitted to the Admin team.' : role === ROLES.ADMIN ? 'Your email is verified. Your Admin application is being submitted for approval.' : 'Your email is verified. Your account is being activated.'}</p>
-    {busy && <p className="auth-small-copy">Please wait…</p>}
-    <Message>{error}</Message>
-    {error && <AuthButton type="button" onClick={complete} disabled={busy}>{busy?'TRYING…':'CONTINUE'}</AuthButton>}
-  </div>;
-}
 
 function AccountPanel({ profile, onRefresh }) {
   const [editing,setEditing]=useState(false); const [name,setName]=useState(profile?.name||''); const [username,setUsername]=useState(profile?.username||''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
@@ -174,7 +107,6 @@ function AccountPanel({ profile, onRefresh }) {
   const reapply=async()=>{setReapplying(true);setError('');try{await requestEditorReapply();await onRefresh();setMessage('Editor application submitted again.')}catch(e){setError(e?.message||'You cannot reapply yet.')}finally{setReapplying(false)}};
   return <div className="account-panel"><div className="account-header"><span>ACCOUNT</span><button className="auth-close-inline" onClick={signOut}>SIGN OUT</button></div><div className="account-grid"><div><span>NAME</span>{editing?<input value={name} onChange={e=>setName(e.target.value)}/>:<strong>{profile.name||'—'}</strong>}</div><div><span>USERNAME</span>{editing?<input value={username} onChange={e=>setUsername(e.target.value)}/>:<strong>{profile.username||'—'}</strong>}</div><div><span>ROLE</span><strong>{roleLabel(profile.role)}</strong></div><div><span>ID</span><strong>{profile.public_id||'Pending approval'}</strong></div><div><span>EMAIL</span><strong>{profile.email||'—'}</strong></div><div><span>PHONE</span><strong>{profile.phone||'Not verified'}</strong></div><div><span>STATUS</span><strong>{profile.status}</strong></div></div>{profile.role===ROLES.EDITOR&&profile.status==='rejected'&&<div className="account-actions"><AuthButton onClick={reapply} disabled={reapplying}>{reapplying?'CHECKING…':'RE-APPLY FOR EDITOR'}</AuthButton></div>}<div className="account-actions">{editing?<><AuthButton onClick={save} disabled={busy}>SAVE</AuthButton><AuthButton onClick={()=>setEditing(false)}>CANCEL</AuthButton></>:<AuthButton onClick={()=>setEditing(true)}>EDIT PROFILE</AuthButton>}</div><div className="account-password"><div className="account-section-title">CHANGE PASSWORD</div><Field label="New Password" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/><Field label="Confirm Password" type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/><AuthButton onClick={password} disabled={busy}>CHANGE PASSWORD</AuthButton></div><div className="account-danger"><div className="account-section-title">DELETE ACCOUNT — PASSWORD REQUIRED</div><Field label="Current Password" type="password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)}/><AuthButton onClick={deleteMe} disabled={deleting}>{deleting?'Deleting…':'DELETE MY ACCOUNT'}</AuthButton></div><Message type="success">{message}</Message><Message>{error}</Message></div>;
 }
-
 function AdminDashboard({ profile }) {
   const [tab,setTab]=useState('editor'); const [editors,setEditors]=useState([]); const [activeEditors,setActiveEditors]=useState([]); const [admins,setAdmins]=useState([]); const [users,setUsers]=useState([]); const [adminApps,setAdminApps]=useState([]); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
   const refresh=async()=>{setLoading(true);setError('');try{const [e,a,u,aa,ae]=await Promise.all([adminListEditorApplications(),adminListPeople(ROLES.ADMIN,null),adminListPeople(ROLES.USER,null),adminListAdminApplications(),adminListPeople(ROLES.EDITOR,'active')]);setEditors(e);setAdmins(a);setUsers(u);setAdminApps(aa);setActiveEditors(ae)}catch(err){setError(err?.message||'Could not load Admin data.')}finally{setLoading(false)}};
@@ -230,6 +162,7 @@ function VerificationGate({ profile, onRefresh }) {
 }
 
 export default function AuthPage() {
+  const [authView, setAuthView] = useState('user');
   const [profile,setProfile]=useState(null); const [session,setSession]=useState(null); const [modal,setModal]=useState(null); const [forgotRole,setForgotRole]=useState(null); const [googleRole,setGoogleRole]=useState(null); const [error,setError]=useState(''); const [notice,setNotice]=useState('');
   const refresh=async()=>{try{const {data}=await supabase.auth.getSession();setSession(data.session);if(data.session){setProfile(await getCurrentProfile())}else setProfile(null)}catch(e){setError(e?.message||'Could not load account.')}};
   useEffect(()=>{
@@ -242,9 +175,37 @@ export default function AuthPage() {
   },[]);
   useEffect(()=>{
     const intended=sessionStorage.getItem('13paarbon_oauth_role');
+    const urlIntent = new URLSearchParams(window.location.search).get('intent');
+    const storageIntent = sessionStorage.getItem('13paarbon_oauth_intent');
+    const intent = urlIntent || storageIntent || 'login';
     if(!session || !profile || !intended) return;
     sessionStorage.removeItem('13paarbon_oauth_role');
+    sessionStorage.removeItem('13paarbon_oauth_intent');
+    
+    // Clean up the URL so the intent parameter doesn't stick around if they refresh
+    if (urlIntent) {
+       const url = new URL(window.location);
+       url.searchParams.delete('intent');
+       window.history.replaceState({}, '', url);
+    }
+    
     const isUnassignedGoogle=profile.oauth_unassigned && profile.role===ROLES.USER && profile.status==='pending' && !profile.username;
+    
+    if (intent === 'login' && isUnassignedGoogle) {
+        selfDeleteAccount().then(() => {
+            setError('No account associated with that Gmail. Please create an account first.');
+            setProfile(null);
+            setSession(null);
+        }).catch(err => {
+            supabase.auth.signOut().then(() => {
+                setError('No account associated with that Gmail. Please create an account first.');
+                setProfile(null);
+                setSession(null);
+            });
+        });
+        return;
+    }
+    
     if(isUnassignedGoogle){
       setGoogleRole(intended);
       return;
@@ -268,16 +229,65 @@ export default function AuthPage() {
   const needsVerification = loggedIn && profile.status==='pending' && profile.role!=='admin' || loggedIn && profile.status==='pending' && profile.role==='admin';
   return <main className="auth-page" style={{'--auth-bg':`url(${BACKGROUND})`,'--auth-texture':`url(${TEXTURE})`}}>
     <div className="auth-background"/><div className="auth-background-depth"/><AuthNav loggedIn={loggedIn}/><AuthPopup/>
-    {!loggedIn ? <section className="auth-role-stage"><RoleCard role={ROLES.ADMIN} hiddenish onLogin={()=>setModal({type:'login',role:ROLES.ADMIN})} onRegister={()=>setModal({type:'register',role:ROLES.ADMIN})}/><RoleCard role={ROLES.USER} onLogin={()=>setModal({type:'login',role:ROLES.USER})} onRegister={()=>setModal({type:'register',role:ROLES.USER})}/><RoleCard role={ROLES.EDITOR} onLogin={()=>setModal({type:'login',role:ROLES.EDITOR})} onRegister={()=>setModal({type:'register',role:ROLES.EDITOR})}/></section> : <section className="auth-account-stage">
+    {!loggedIn ? (
+      authView === 'user' ? (
+        <section className="auth-user-login-card animate-reveal">
+          <div className="auth-user-card-inner">
+            <div className="auth-dhak-icon">
+              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 6c0-1.5 5-2 5-2s5 .5 5 2v12c0 1.5-5 2-5 2s-5-.5-5-2V6z"></path>
+                <path d="M7 6c0 1.5 5 2 5 2s5-.5 5-2"></path>
+                <path d="M7 18c0 1.5 5 2 5 2s5-.5 5-2"></path>
+                <line x1="2" y1="12" x2="7" y2="10"></line>
+                <line x1="22" y1="12" x2="17" y2="10"></line>
+              </svg>
+            </div>
+            <h1 className="auth-user-title">USER LOGIN</h1>
+            <p className="auth-user-subtitle">Sign in to explore Pujo events, blogs and more.</p>
+            <div className="auth-google-wrapper">
+              <button className="auth-google-main-btn" onClick={async()=>{
+                setError('');
+                try{ await signInWithGoogle(ROLES.USER, false) }
+                catch(e){ setError(e?.message||'Google sign in failed.') }
+              }}>
+                <svg width="20" height="20" viewBox="0 0 48 48" style={{marginRight: '12px'}}>
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                Continue with Google
+              </button>
+              <p className="auth-small-copy" style={{ marginTop: '16px', opacity: 0.9 }}>
+                Don't have an account? <button className="auth-link-button" onClick={async()=>{ setError(''); try{ await signInWithGoogle(ROLES.USER, true) } catch(e){ setError(e?.message||'Google sign in failed.') } }}>Create one with Google</button>
+              </p>
+            </div>
+            <hr className="auth-divider" />
+            <div className="auth-staff-link-area">
+              <p>Are you an Editor or Admin?</p>
+              <button className="auth-link-button" onClick={() => setAuthView('staff')}>Editor / Admin Login</button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="auth-role-stage staff-stage">
+          <div className="auth-back-area" style={{ width: '100%', maxWidth: '900px', margin: '0 auto 20px', display: 'flex', justifyContent: 'center' }}>
+            <button className="auth-link-button" onClick={() => setAuthView('user')}>&larr; Back to User Login</button>
+          </div>
+          <RoleCard role={ROLES.EDITOR} onGoogleSignIn={async()=>{ setError(''); try{ await signInWithGoogle(ROLES.EDITOR, false) } catch(e){ setError(e?.message||'Google sign in failed.') } }} onGoogleSignUp={async()=>{ setError(''); try{ await signInWithGoogle(ROLES.EDITOR, true) } catch(e){ setError(e?.message||'Google sign in failed.') } }} />
+          <RoleCard role={ROLES.ADMIN} hiddenish onGoogleSignIn={async()=>{ setError(''); try{ await signInWithGoogle(ROLES.ADMIN, false) } catch(e){ setError(e?.message||'Google sign in failed.') } }} onGoogleSignUp={async()=>{ setError(''); try{ await signInWithGoogle(ROLES.ADMIN, true) } catch(e){ setError(e?.message||'Google sign in failed.') } }} />
+        </section>
+      )
+    ) : <section className="auth-account-stage">
       <AccountPanel profile={profile} onRefresh={refresh}/>
       {needsVerification && <VerificationGate profile={profile} onRefresh={refresh}/>}
       {!needsVerification && profile.role===ROLES.ADMIN && <AdminDashboard profile={profile}/>}
       <div className="auth-logged-actions"><AuthButton onClick={()=>window.location.href='/pujo'}>GO TO PUJO</AuthButton><AuthButton onClick={signOut}>SIGN OUT</AuthButton></div>
     </section>}
     {googleRole && !googleRole.startsWith('verify:') && profile && <GoogleOnboarding profile={profile} intendedRole={googleRole} onComplete={completeGoogleOnboarding}/>}
-    {modal?.type==='login'&&<div className="auth-modal-backdrop"><LoginForm role={modal.role} onClose={()=>setModal(null)} onForgot={()=>{setForgotRole(modal.role);setModal(null)}} onSuccess={()=>{setModal(null);refresh()}}/></div>}
-    {modal?.type==='register'&&<div className="auth-modal-backdrop"><RegistrationForm role={modal.role} onClose={()=>setModal(null)} onSuccess={()=>{setModal(null);refresh()}}/></div>}
-    {forgotRole&&<div className="auth-modal-backdrop"><ForgotPassword role={forgotRole} onClose={()=>setForgotRole(null)}/></div>}
+    
+    
+    
     {resetParam&&session&&<div className="auth-modal-backdrop"><div className="auth-modal-shell"><button className="auth-close" onClick={()=>history.replaceState({},'', '/login')}>×</button><div className="auth-modal-title">Reset Password</div><div className="auth-form"><p className="auth-small-copy">Your verified email link is being used to reset the password.</p><Field label="New Password" type="password" value={resetPassword} onChange={e=>setResetPassword(e.target.value)}/><Field label="Confirm Password" type="password" value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)}/><AuthButton onClick={doReset}>SAVE PASSWORD</AuthButton><Message type="success">{notice}</Message><Message>{error}</Message></div></div></div>}
     {error&&!modal&&!forgotRole&&!resetParam&&!loggedIn&&<div className="auth-global-message"><Message>{error}</Message></div>}
   </main>;

@@ -1233,3 +1233,133 @@ a {
 .auth-popup-copy{font-size:12px;line-height:1.7;max-width:440px}
 .auth-popup-success .auth-popup-mark{background:rgba(255,255,255,.1)}
 .auth-popup-close{min-width:92px;margin-top:2px}
+
+/* Login Page Redesign */
+.auth-user-login-card {
+  position: relative;
+  z-index: 5;
+  width: min(480px, 94vw);
+  margin: 100px auto 60px;
+  background: linear-gradient(180deg, rgba(168, 21, 29, 0.9), rgba(137, 8, 16, 0.95)), var(--auth-texture);
+  background-size: auto, cover;
+  background-position: center;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(15, 0, 0, 0.6), 0 0 0 1px rgba(255, 215, 0, 0.2) inset;
+  text-align: center;
+  color: #fdf5e6;
+  padding: 40px 30px;
+}
+
+.auth-user-login-card::before, .auth-user-login-card::after {
+  content: '';
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" fill="none" stroke="%23ffd700" stroke-width="1.5"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>') no-repeat center center;
+  background-size: contain;
+  opacity: 0.5;
+}
+
+.auth-user-login-card::before { top: 12px; left: 12px; }
+.auth-user-login-card::after { top: 12px; right: 12px; }
+
+.auth-dhak-icon {
+  margin-bottom: 20px;
+  color: #ffd700;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-user-title {
+  font-family: "Intel One Mono", var(--mono), monospace;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  color: #fff;
+}
+
+.auth-user-subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 30px;
+  opacity: 0.9;
+  font-family: inherit;
+}
+
+.auth-google-wrapper {
+  margin-bottom: 30px;
+}
+
+.auth-google-main-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.auth-google-main-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.auth-divider {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.4), transparent);
+  margin: 30px 0;
+}
+
+.auth-staff-link-area {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.auth-staff-link-area p {
+  margin-bottom: 8px;
+}
+
+.auth-staff-link-area .auth-link-button {
+  font-size: 14px;
+  color: #ffd700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.auth-staff-link-area .auth-link-button:hover {
+  color: #fff;
+}
+
+.staff-stage { display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.animate-reveal {
+  animation: authFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (max-width: 600px) {
+  .auth-user-login-card {
+    padding: 30px 20px;
+    margin-top: 60px;
+  }
+  .auth-user-title {
+    font-size: 24px;
+  }
+  .auth-user-subtitle {
+    font-size: 14px;
+  }
+}

@@ -1,0 +1,24 @@
+const fs = require('fs');
+
+let content = fs.readFileSync('src/AuthPage.jsx', 'utf8');
+
+const accountPanelStr = `
+function AccountPanel({ profile, onRefresh }) {
+  const [editing,setEditing]=useState(false); const [name,setName]=useState(profile?.name||''); const [username,setUsername]=useState(profile?.username||''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
+  useEffect(()=>{
+    setName(profile?.name||'');
+    setUsername(profile?.username||'');
+  },[profile?.name,profile?.username]);
+  const [newPassword,setNewPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState(''); const [deleting,setDeleting]=useState(false); const [deletePassword,setDeletePassword]=useState('');
+  const save=async()=>{setBusy(true);setError('');try{await updateOwnProfile({name,username});setEditing(false);await onRefresh();setMessage('Profile updated.')}catch(e){setError(e?.message||'Could not update profile.')}finally{setBusy(false)}};
+  const password=async()=>{if(newPassword.length<8||newPassword!==confirmPassword){setError('Passwords must match and be at least 8 characters.');return}setBusy(true);try{await updatePassword(newPassword);setNewPassword('');setConfirmPassword('');setMessage('Password updated.')}catch(e){setError(e?.message||'Could not update password.')}finally{setBusy(false)}};
+  const deleteMe=async()=>{if(!window.confirm('Delete your account? This cannot be undone.'))return;if(!deletePassword){setError('Enter your current password before deleting the account.');return}setDeleting(true);try{const {data:sessionData}=await supabase.auth.getSession();if(!sessionData.session)throw new Error('Your session has expired. Please sign in again.');const {data:userData}=await supabase.auth.getUser();if(!userData.user||userData.user.id!==profile.id)throw new Error('Your account session could not be verified.');const {data:reauthData,error:reauthError}=await supabase.auth.signInWithPassword({email:profile.email,password:deletePassword});if(reauthError)throw reauthError;if(reauthData?.user?.id!==profile.id)throw new Error('The password did not authenticate this account.');await selfDeleteAccount();window.location.href='/login';}catch(e){setError(e?.message||'Could not delete account.')}finally{setDeleting(false)}};
+  const [reapplying,setReapplying]=useState(false);
+  const reapply=async()=>{setReapplying(true);setError('');try{await requestEditorReapply();await onRefresh();setMessage('Editor application submitted again.')}catch(e){setError(e?.message||'You cannot reapply yet.')}finally{setReapplying(false)}};
+  return <div className="account-panel"><div className="account-header"><span>ACCOUNT</span><button className="auth-close-inline" onClick={signOut}>SIGN OUT</button></div><div className="account-grid"><div><span>NAME</span>{editing?<input value={name} onChange={e=>setName(e.target.value)}/>:<strong>{profile.name||'—'}</strong>}</div><div><span>USERNAME</span>{editing?<input value={username} onChange={e=>setUsername(e.target.value)}/>:<strong>{profile.username||'—'}</strong>}</div><div><span>ROLE</span><strong>{roleLabel(profile.role)}</strong></div><div><span>ID</span><strong>{profile.public_id||'Pending approval'}</strong></div><div><span>EMAIL</span><strong>{profile.email||'—'}</strong></div><div><span>PHONE</span><strong>{profile.phone||'Not verified'}</strong></div><div><span>STATUS</span><strong>{profile.status}</strong></div></div>{profile.role===ROLES.EDITOR&&profile.status==='rejected'&&<div className="account-actions"><AuthButton onClick={reapply} disabled={reapplying}>{reapplying?'CHECKING…':'RE-APPLY FOR EDITOR'}</AuthButton></div>}<div className="account-actions">{editing?<><AuthButton onClick={save} disabled={busy}>SAVE</AuthButton><AuthButton onClick={()=>setEditing(false)}>CANCEL</AuthButton></>:<AuthButton onClick={()=>setEditing(true)}>EDIT PROFILE</AuthButton>}</div><div className="account-password"><div className="account-section-title">CHANGE PASSWORD</div><Field label="New Password" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/><Field label="Confirm Password" type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/><AuthButton onClick={password} disabled={busy}>CHANGE PASSWORD</AuthButton></div><div className="account-danger"><div className="account-section-title">DELETE ACCOUNT — PASSWORD REQUIRED</div><Field label="Current Password" type="password" value={deletePassword} onChange={e=>setDeletePassword(e.target.value)}/><AuthButton onClick={deleteMe} disabled={deleting}>{deleting?'Deleting…':'DELETE MY ACCOUNT'}</AuthButton></div><Message type="success">{message}</Message><Message>{error}</Message></div>;
+}
+`;
+
+content = content.replace('function AdminDashboard', accountPanelStr + '\\nfunction AdminDashboard');
+
+fs.writeFileSync('src/AuthPage.jsx', content);

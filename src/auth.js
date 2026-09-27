@@ -79,21 +79,23 @@ export async function signInWithUsername({ username, password, role }) {
   return { user: data.user, profile };
 }
 
-export async function signInWithGoogle(role) {
+export async function signInWithGoogle(role, isSignUp = false) {
   if (!Object.values(ROLES).includes(role)) {
     throw new Error('Invalid account role for Google sign-in.');
   }
 
   sessionStorage.setItem('13paarbon_oauth_role', role);
+  sessionStorage.setItem('13paarbon_oauth_intent', isSignUp ? 'signup' : 'login');
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/login?intent=${isSignUp ? 'signup' : 'login'}`,
       queryParams: { prompt: 'select_account' },
     },
   });
   if (error) {
     sessionStorage.removeItem('13paarbon_oauth_role');
+    sessionStorage.removeItem('13paarbon_oauth_intent');
     throw new Error(friendlyAuthError(error));
   }
 }
